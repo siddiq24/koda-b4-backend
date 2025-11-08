@@ -42,11 +42,22 @@ func (m *Auth) AddUser(c context.Context, newUser AuthRequest) (int, error) {
 	return ID, nil
 }
 
-func (m *Auth) UserExist(c context.Context, email string) bool {
-	total := 0
-	User_sql := `SELECT count(*) FROM users WHERE email = $1`
-	err := m.Pg.QueryRow(c, User_sql, email).Scan(&total)
-	log.Println(err, total)
+func (m *Auth) EmailExist(c context.Context, email string) int {
+	ID := 0
+	User_sql := `SELECT id FROM users WHERE email = $1`
+	if err := m.Pg.QueryRow(c, User_sql, email).Scan(&ID); err != nil {
+		log.Println(err)
+	}
+	return ID
+}
 
-	return total > 0
+func (m *Auth) PasswordUser(c context.Context, email string) string {
+	var pass string
+	Query := `SELECT password FROM users WHERE email=$1`
+	if err := m.Pg.QueryRow(c, Query, email).Scan(&pass); err != nil {
+		log.Println(err)
+		return ""
+	}
+	log.Println(pass)
+	return pass
 }
