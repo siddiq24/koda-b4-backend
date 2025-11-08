@@ -11,6 +11,7 @@ func InitRouter(pg *pgxpool.Pool) *gin.Engine {
 	r.Use(middlewares.Cors())
 
 	AuthRouter(r, pg)
+	PromoRouter(r, pg)
 
 	return r
 }
