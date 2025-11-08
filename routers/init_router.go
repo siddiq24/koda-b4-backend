@@ -12,6 +12,7 @@ func InitRouter(pg *pgxpool.Pool) *gin.Engine {
 
 	AuthRouter(r, pg)
 	PromoRouter(r, pg)
+	ProductRouter(r, pg)
 
 	return r
 }
