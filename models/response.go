@@ -9,8 +9,9 @@ import (
 type JSON_Response struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
+	Token   string `json:"token,omitempty"`
 	Result  any    `json:"result"`
-	Error   any    `json:"error"`
+	Error   any    `json:"error,omitempty"`
 }
 
 func ErrorResponse(c *gin.Context, stts int, msg string, err any) {
