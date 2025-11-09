@@ -16,6 +16,7 @@ func InitRouter(pg *pgxpool.Pool) *gin.Engine {
 	AuthRouter(r, pg)
 	PromoRouter(r, pg)
 	ProductRouter(r, pg)
+	OrderRouter(r, pg)
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
