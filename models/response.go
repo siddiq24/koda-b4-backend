@@ -10,7 +10,7 @@ type JSON_Response struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Token   string `json:"token,omitempty"`
-	Result  any    `json:"result"`
+	Result  any    `json:"result,omitempty"`
 	Error   any    `json:"error,omitempty"`
 }
 
