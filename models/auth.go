@@ -9,9 +9,9 @@ import (
 )
 
 type AuthRequest struct {
-	Fullname string `json:"fullname" binding:"required"`
-	Email    string `json:"email" binding:"required"`
-	Password string `json:"password" binding:"min=8"`
+	Fullname string `json:"fullname" form:"fullname" binding:"required"`
+	Email    string `json:"email" form:"email" binding:"required"`
+	Password string `json:"password,omitempty" form:"password,omitempty" binding:"min=8"`
 	Role     string `json:"role"`
 }
 
@@ -51,13 +51,13 @@ func (m *Auth) EmailExist(c context.Context, email string) int {
 	return ID
 }
 
-func (m *Auth) PasswordUser(c context.Context, email string) string {
+func (m *Auth) PasswordIDUser(c context.Context, email string) (int, string) {
+	var id int
 	var pass string
-	Query := `SELECT password FROM users WHERE email=$1`
-	if err := m.Pg.QueryRow(c, Query, email).Scan(&pass); err != nil {
+	Query := `SELECT id, password FROM users WHERE email=$1`
+	if err := m.Pg.QueryRow(c, Query, email).Scan(&id, &pass); err != nil {
 		log.Println(err)
-		return ""
+		return 0, ""
 	}
-	log.Println(pass)
-	return pass
+	return id, pass
 }
