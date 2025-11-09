@@ -98,10 +98,13 @@ func (a *AuthController) Login(c *gin.Context) {
 		}
 	}
 
-	if libs.Verify_Hash(req.Password, a.Model.PasswordUser(c, req.Email)) {
+	id, pass := a.Model.PasswordIDUser(c, req.Email)
+	token, _ := libs.GenerateJwt(id)
+	if libs.Verify_Hash(req.Password, pass) {
 		c.JSON(http.StatusCreated, models.JSON_Response{
 			Success: true,
-			Message: "Register successfully",
+			Message: "Login successfully",
+			Token:   token,
 			Result:  req,
 		})
 		return
