@@ -51,13 +51,14 @@ func (m *Auth) EmailExist(c context.Context, email string) int {
 	return ID
 }
 
-func (m *Auth) PasswordIDUser(c context.Context, email string) (int, string) {
+func (m *Auth) PasswordIDUser(c context.Context, email string) (int, string, string) {
 	var id int
 	var pass string
-	Query := `SELECT id, password FROM users WHERE email=$1`
-	if err := m.Pg.QueryRow(c, Query, email).Scan(&id, &pass); err != nil {
+	var role string
+	Query := `SELECT id, password, role FROM users WHERE email=$1`
+	if err := m.Pg.QueryRow(c, Query, email).Scan(&id, &pass, &role); err != nil {
 		log.Println(err)
-		return 0, ""
+		return 0, "", ""
 	}
-	return id, pass
+	return id, pass, role
 }
