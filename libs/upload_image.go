@@ -22,7 +22,7 @@ func SaveUploadedFile(c *gin.Context, file multipart.File, header *multipart.Fil
 		return "", fmt.Errorf("format image is wrong")
 	}
 	if header.Size > (1024 * 1024) {
-		return "", fmt.Errorf("Ukuran image terlalu besar")
+		return "", fmt.Errorf("ukuran image terlalu besar")
 	}
 
 	img, _, err := image.Decode(file)
