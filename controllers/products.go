@@ -4,18 +4,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
 
 type ProductsController struct {
 	Product *models.Product
-}
-
-func NewProductController(pg *pgxpool.Pool) *ProductsController {
-	return &ProductsController{
-		Product: &models.Product{Pg: pg},
-	}
 }
 
 // GetAllProducts godoc

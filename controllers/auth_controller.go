@@ -10,13 +10,7 @@ import (
 )
 
 type AuthController struct {
-	Model *models.Auth
-}
-
-func NewAuthController(auth *models.Auth) *AuthController {
-	return &AuthController{
-		Model: auth,
-	}
+	Auth models.Auth
 }
 
 // Register godoc
@@ -54,12 +48,12 @@ func (a *AuthController) Register(c *gin.Context) {
 	}
 	request.Password = libs.Create_Hash(request.Password)
 
-	if a.Model.EmailExist(c, request.Email) > 0 {
+	if a.Auth.EmailExist(c, request.Email) > 0 {
 		models.ErrorResponse(c, http.StatusConflict, "Silahkan login atau gunakan email lain", "Email telah terdaftar")
 		return
 	}
 
-	if _, err := a.Model.AddUser(c, request); err != nil {
+	if _, err := a.Auth.AddUser(c, request); err != nil {
 		models.ErrorResponse(c, http.StatusConflict, "Terjadi kesalahan saat menambahkan user", err.Error())
 		return
 	}
@@ -98,7 +92,7 @@ func (a *AuthController) Login(c *gin.Context) {
 		}
 	}
 
-	id, pass, role := a.Model.PasswordIDUser(c, req.Email)
+	id, pass, role := a.Auth.PasswordIDUser(c, req.Email)
 	token, _ := libs.GenerateJwt(id, role)
 	if libs.Verify_Hash(req.Password, pass) {
 		c.JSON(http.StatusCreated, models.JSON_Response{

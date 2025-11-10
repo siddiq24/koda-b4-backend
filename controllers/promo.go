@@ -13,7 +13,7 @@ type Promo struct {
 }
 
 func (p *Promo) GetPromo(c *gin.Context) {
-	promos, err := models.AllPromo(c, p.Pg)
+	promos, err := models.AllPromo(c)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Server error", err)
 	}

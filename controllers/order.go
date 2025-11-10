@@ -5,17 +5,12 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siddiq24/backend-coffee-shop/libs"
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
 
 type OrderController struct {
 	Order *models.Order
-}
-
-func NewOrderController(pg *pgxpool.Pool) *OrderController {
-	return &OrderController{Order: &models.Order{Pg: pg}}
 }
 
 // CreateOrder godoc
