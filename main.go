@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
-	"github.com/siddiq24/backend-coffee-shop/configs"
 	_ "github.com/siddiq24/backend-coffee-shop/docs"
 	"github.com/siddiq24/backend-coffee-shop/routers"
 )
@@ -26,8 +25,7 @@ import (
 // @BasePath  /
 func main() {
 	godotenv.Load()
-	pg := configs.InitDbConfigs()
-	r := routers.InitRouter(pg)
+	r := routers.InitRouter()
 
 	port := os.Getenv("PORT")
 	r.Run(fmt.Sprintf(":%s", port))
