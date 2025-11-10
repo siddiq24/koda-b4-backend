@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Order_Request struct {
@@ -26,9 +25,7 @@ type ProductOrder struct {
 	Total    uint64 `json:"total" form:"total"`
 }
 
-type Order struct {
-	Pg *pgxpool.Pool
-}
+type Order struct{}
 
 func (o *Order) CreateOrder(c *gin.Context, req Order_Request) error {
 
@@ -36,19 +33,19 @@ func (o *Order) CreateOrder(c *gin.Context, req Order_Request) error {
 	QueryOrder := fmt.Sprintf("INSERT INTO orders( user_id, shipping_id, no_order, status_id, promo_id, total_order) VALUES(%d,%d,'%s',%d,%d, 0) RETURNING id;",
 		req.UserId, req.ShippingId, req.NoOrder, req.StatusId, req.PromoId)
 	var orderId int
-	if err := o.Pg.QueryRow(c, QueryOrder).Scan(&orderId); err != nil {
+	if err := Pg.QueryRow(c, QueryOrder).Scan(&orderId); err != nil {
 		return err
 	}
 
 	var totalOrder uint64
 	for _, product := range req.Products {
-		if _, err := o.Pg.Exec(c, `INSERT INTO orders_products(order_id, product_id, size_id, varian_id, qty) VALUES ($1, $2, $3, $4, $5)`, orderId, product.Id, product.SizeId, product.VarianId, product.Qty); err != nil {
+		if _, err := Pg.Exec(c, `INSERT INTO orders_products(order_id, product_id, size_id, varian_id, qty) VALUES ($1, $2, $3, $4, $5)`, orderId, product.Id, product.SizeId, product.VarianId, product.Qty); err != nil {
 			return err
 		}
 		totalOrder += product.Total
 	}
 
-	if _, err := o.Pg.Exec(c, `UPDATE orders SET total_order = $1 WHERE id = $2`, totalOrder, orderId); err != nil {
+	if _, err := Pg.Exec(c, `UPDATE orders SET total_order = $1 WHERE id = $2`, totalOrder, orderId); err != nil {
 		return err
 	}
 	return nil

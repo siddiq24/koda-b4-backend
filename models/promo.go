@@ -2,8 +2,6 @@ package models
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Promo struct {
@@ -12,10 +10,10 @@ type Promo struct {
 	Desc  string `json:"desc"`
 }
 
-func AllPromo(c context.Context, pg *pgxpool.Pool) ([]Promo, error) {
+func AllPromo(c context.Context) ([]Promo, error) {
 	var promos []Promo
 	Query := `SELECT id, title, description FROM promos WHERE "end" >= CURRENT_DATE`
-	rows, err := pg.Query(c, Query)
+	rows, err := Pg.Query(c, Query)
 	if err != nil {
 		return nil, err
 	}

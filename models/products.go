@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Product_Params struct {
@@ -29,9 +27,7 @@ type Product_ress struct {
 	Sizes    []string        `json:"sizes"`
 }
 
-type Product struct {
-	Pg *pgxpool.Pool
-}
+type Product struct{}
 
 func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]Product_ress, error) {
 	productMap := make(map[int]*Product_ress)
@@ -83,7 +79,7 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 		LIMIT %d OFFSET %d
 	`, filterQuery, Limit, offset)
 
-	rows, err := p.Pg.Query(c, query)
+	rows, err := Pg.Query(c, query)
 	if err != nil {
 		return nil, err
 	}
