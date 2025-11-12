@@ -271,3 +271,89 @@ func (p *Product) GetRecommendation(ctx context.Context, id int, limit int) ([]P
 
 	return products, nil
 }
+
+type Cart_Request struct {
+	OrderId   int `json:"order_id" form:"order_id"`
+	UserId    int `json:"user_id" form:"user_id"`
+	ProductId int `json:"product_id" form:"product_id"`
+	VarianId  int `json:"varian_id" form:"varian_id"`
+	SizeId    int `json:"size_id"`
+	Qty       int `json:"quantity" form:"quantity"`
+}
+
+func (p *Product) CreateCart(c context.Context, req Cart_Request) (Cart_Request, error) {
+	var order_id uint64
+	if err := Pg.QueryRow(c, `INSERT INTO orders(user_id) VALUES ($1) RETURNING id `, req.UserId).Scan(&order_id); err != nil {
+		return Cart_Request{}, fmt.Errorf("failed insert product: %w", err)
+	}
+	if _, err := Pg.Exec(c, `INSERT INTO orderss_products(order_id, product_id, varian_id, size_id, qty) VALUES ($1, $2, $3, $4, $5)`); err != nil {
+		return Cart_Request{}, fmt.Errorf("failed insert cart %w", err)
+	}
+	if err := Pg.QueryRow(c, `
+		SELECT 
+			p.id,
+			s.name,
+			v.name
+		FROM orders_products op
+		LEFT JOIN products p ON p.id = op.product_id
+		LEFT JOIN sizes s ON s.id = op.size_id
+		LEFT JOIN variants v ON v.id = op.varian_id
+		WHERE op.order_id = $1
+	`, req.UserId).Scan(&req.OrderId, &req.ProductId, &req.SizeId, &req.VarianId, &req.Qty); err != nil {
+		return Cart_Request{}, fmt.Errorf("failed insert to products %w", err)
+	}
+
+	return req, nil
+}
+
+type ProductCart struct {
+	Id       int
+	Image    string
+	Title    string
+	Qty      int
+	Size     string
+	Variants string
+}
+
+func (p *Product) GetProductCart(c context.Context, id int) ([]ProductCart, error) {
+	rows, err := Pg.Query(c, `
+		SELECT 
+			p.id,
+			p.title,
+			pi.image,
+			s.name,
+			v.name,
+			op.qty,
+			MAX(op.order_id)
+		FROM orders_products op
+		FULL JOIN products p ON p.id = op.product_id
+		FULL JOIN sizes s ON s.id = op.size_id
+		FULL JOIN variants v ON v.id = op.varian_id
+		full JOIN products_images pi ON pi.product_id = p.id
+		left join orders o On o.id = op.order_id
+		WHERE o.user_id = $1
+		GROUP BY p.id, pi.id, s.id, v.id, op.qty;;
+	`, id)
+	if err != nil {
+		return nil, fmt.Errorf("Error binding query %w", err)
+	}
+
+	var ress []ProductCart
+	defer rows.Close()
+
+	for rows.Next() {
+		rsp := ProductCart{}
+		err := rows.Scan(
+			&rsp.Id,
+			&rsp.Title,
+			&rsp.Image,
+			&rsp.Size,
+			&rsp.Variants,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("Scan error %w", err)
+		}
+		ress = append(ress, rsp)
+	}
+	return ress, nil
+}

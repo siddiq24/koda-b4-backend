@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siddiq24/backend-coffee-shop/libs"
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
 
@@ -132,3 +133,38 @@ func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 		Result:  ress,
 	})
 }
+
+func (pc *ProductsController) CreateCart(c *gin.Context) {
+	var req models.Cart_Request
+	if err := c.ShouldBind(&req); err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Request Invalid", err.Error())
+		return
+	}
+	ress, err := pc.Product.CreateCart(c.Request.Context(), req)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Add product to cart successfully",
+		Result:  ress,
+	})
+}
+
+func (pc *ProductsController) GetProductCart(c *gin.Context) {
+	id := 
+	ress, err := pc.Product.GetProductCart(c.Request.Context(), id)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Add product to cart successfully",
+		Result:  ress,
+	})
+}
+
