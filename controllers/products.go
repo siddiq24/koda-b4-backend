@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,15 +32,30 @@ type ProductsController struct {
 // @Failure      500  {object}  models.JSON_Response "Internal server error"
 // @Router       /products [get]
 func (pc *ProductsController) GetAllProducts(c *gin.Context) {
-	var prm models.Product_Params
-
-	if err := c.ShouldBindQuery(&prm); err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "invalid query params", err.Error())
-		return
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	min, _ := strconv.Atoi(c.Query("minPrice"))
+	max, _ := strconv.Atoi(c.Query("maxPrice"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	_, ok := c.GetQuery("asc")
+	prm := models.Product_Params{
+		Page:       page,
+		Search:     c.Query("search"),
+		CategoryId: c.QueryArray("cat"),
+		MinPrice:   uint64(min),
+		MaxPrice:   uint64(max),
+		ShortBy:    c.Query("shortBy"),
+		Asc:        ok,
+		Limit:      limit,
 	}
 
-	value, err := models.Rdb.Get(c.Request.Context(), "users").Result()
+	var value string
+	var err error
 	var results []models.Product_ress
+
+	if len(c.Request.URL.Query()) == 0 {
+		value, err = models.Rdb.Get(c.Request.Context(), "users").Result()
+		fmt.Println("get redis")
+	}
 
 	// jika redis kosong, ambil dari postgres
 	if value == "" || err != nil {
@@ -47,11 +64,14 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 			models.ErrorResponse(c, http.StatusInternalServerError, "failed to get products", err.Error())
 			return
 		}
-		prod, _ := json.Marshal(products)
+		if len(c.Request.URL.Query()) == 0 {
+			prod, _ := json.Marshal(products)
+			fmt.Println("set redis")
 
-		if err := models.Rdb.Set(c.Request.Context(), "users", prod, (time.Duration(15) * time.Second)).Err(); err != nil {
-			models.ErrorResponse(c, http.StatusBadRequest, "Gagal Set products ke redis", err.Error())
-			return
+			if err := models.Rdb.Set(c.Request.Context(), "users", prod, (time.Duration(15) * time.Second)).Err(); err != nil {
+				models.ErrorResponse(c, http.StatusBadRequest, "Gagal Set products ke redis", err.Error())
+				return
+			}
 		}
 		results = append(results, products...)
 	} else {
@@ -65,5 +85,50 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 		Success: true,
 		Message: "success get products",
 		Result:  results,
+	})
+}
+
+func (pc *ProductsController) GetAllFavProducts(c *gin.Context) {
+	limit, err := strconv.Atoi(c.Query("limit"))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid Query", err.Error())
+		return
+	}
+
+	results, err := pc.Product.FavProducts(c, limit)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Error from get Fav products ", err.Error())
+		return
+	}
+
+	c.JSON(200, models.JSON_Response{
+		Success: true,
+		Message: "success get products",
+		Result:  results,
+	})
+}
+
+func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
+		return
+	}
+	limit, err := strconv.Atoi(c.Query("limit"))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
+		return
+	}
+
+	ress, err := pc.Product.RecommendationAdvanced(c.Request.Context(), id, limit)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Get recomendation Products successfully",
+		Result:  ress,
 	})
 }
