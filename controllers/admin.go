@@ -64,13 +64,13 @@ func (a AdminController) CreateProduct(c *gin.Context) {
 
 	err := a.Admin.CreateProduct(c.Request.Context(), req)
 	if err != nil {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal membuat product", err.Error())
+		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal menambahkan product", err.Error())
 		return
 	}
 
 	c.JSON(http.StatusCreated, models.JSON_Response{
 		Success: true,
-		Message: "Berhasil membuat product",
+		Message: "Berhasil menambahkan product",
 	})
 }
 
@@ -641,5 +641,22 @@ func (a AdminController) DeleteProductImage(c *gin.Context) {
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
 		Message: "Berhasil menghapus image",
+	})
+}
+
+func (a AdminController) SetFavProducts(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid Product ID", err)
+		return
+	}
+	if err := a.Admin.AddFavoriteProduct(c, id); err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid Product ID", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Berhasil menambahkan product ke fevorite",
 	})
 }
