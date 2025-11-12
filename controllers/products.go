@@ -120,7 +120,7 @@ func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 		return
 	}
 
-	ress, err := pc.Product.RecommendationAdvanced(c.Request.Context(), id, limit)
+	ress, err := pc.Product.GetRecommendation(c.Request.Context(), id, limit)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
 		return

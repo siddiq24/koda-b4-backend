@@ -4,130 +4,270 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"slices"
-	"strings"
+
+	sq "github.com/Masterminds/squirrel"
 )
 
 type Product_Params struct {
-	Page       int
-	Search     string
-	CategoryId int
-	MinPrice   uint64
-	MaxPrice   uint64
+	Page       int      `form:"page"`
+	Search     string   `form:"search"`
+	CategoryId []string `form:"cat"`
+	MinPrice   uint64   `form:"minPrice"`
+	MaxPrice   uint64   `form:"maxPrice"`
+	ShortBy    string   `form:"shortBy"`
+	Asc        bool     `form:"asc"`
+	Limit      int      `form:"limit"`
 }
 
 type Product_ress struct {
-	Id       int             `json:"id"`
-	Title    string          `json:"title"`
-	Desc     string          `json:"desc"`
-	Price    uint64          `json:"price"`
-	Discount sql.NullFloat64 `json:"discount"`
-	Category string          `json:"category"`
-	Images   []string        `json:"images"`
-	Sizes    []string        `json:"sizes"`
+	Id        int             `json:"id"`
+	Title     string          `json:"title"`
+	Desc      string          `json:"desc"`
+	Price     uint64          `json:"price"`
+	Discount  sql.NullFloat64 `json:"discount"`
+	Category  string          `json:"category"`
+	Images    []string        `json:"images"`
+	Sizes     []string        `json:"sizes"`
+	Frequency int             `json:"freq,omitempty"`
 }
 
 type Product struct{}
 
 func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]Product_ress, error) {
-	productMap := make(map[int]*Product_ress)
-	var res []Product_ress
-	Limit := 10
-	if prm.Page <= 1 {
+	var products []Product_ress
+
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	sortDir := "DESC"
+	if prm.Asc {
+		sortDir = "ASC"
+	}
+
+	query := psql.
+		Select(
+			"p.id",
+			"p.title",
+			"p.description",
+			"p.base_price",
+			"COALESCE(pr.discount, 0) AS discount",
+			"c.name AS category_name",
+			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
+			"COALESCE(ARRAY_AGG(DISTINCT sz.name) FILTER (WHERE sz.name IS NOT NULL), '{}') AS sizes",
+		).
+		From("products p").
+		LeftJoin("categories c ON c.id = p.category_id").
+		LeftJoin("products_images i ON i.product_id = p.id").
+		LeftJoin("products_sizes ps ON ps.product_id = p.id").
+		LeftJoin("sizes sz ON sz.id = ps.size_id").
+		LeftJoin("products_promos pp ON pp.product_id = p.id").
+		LeftJoin("promos pr ON pr.id = pp.promo_id").
+		GroupBy("p.id", "c.name", "pr.discount")
+
+	if prm.Search != "" {
+		search := "%" + prm.Search + "%"
+		query = query.Where(sq.Or{
+			sq.ILike{"p.title": search},
+			sq.ILike{"p.description": search},
+		})
+	}
+
+	if len(prm.CategoryId) > 0 {
+		query = query.Where(sq.Eq{"p.category_id": prm.CategoryId})
+	}
+
+	if prm.MinPrice > 0 {
+		query = query.Where(sq.GtOrEq{"p.base_price": prm.MinPrice})
+	}
+
+	if prm.MaxPrice > 0 {
+		query = query.Where(sq.LtOrEq{"p.base_price": prm.MaxPrice})
+	}
+
+	switch prm.ShortBy {
+	case "title":
+		query = query.OrderBy(fmt.Sprintf("p.title %s", sortDir))
+	case "price":
+		query = query.OrderBy(fmt.Sprintf("p.base_price %s", sortDir))
+	default:
+		query = query.OrderBy(fmt.Sprintf("p.id %s", sortDir))
+	}
+
+	if prm.Page <= 0 {
 		prm.Page = 1
 	}
-	offset := (prm.Page - 1) * Limit
-	var filters []string
-	if prm.Search != "" {
-		search := strings.ReplaceAll(prm.Search, "'", "''")
-		filters = append(filters, fmt.Sprintf("(p.title ILIKE '%%%s%%' OR p.description ILIKE '%%%s%%')", search, search))
-	}
-	if prm.CategoryId > 0 {
-		filters = append(filters, fmt.Sprintf("p.category_id = %d", prm.CategoryId))
-	}
-	if prm.MinPrice > 0 {
-		filters = append(filters, fmt.Sprintf("p.base_price >= %d", prm.MinPrice))
-	}
-	if prm.MaxPrice > 0 {
-		filters = append(filters, fmt.Sprintf("p.base_price <= %d", prm.MaxPrice))
-	}
+	offset := (prm.Page - 1) * prm.Limit
+	query = query.Limit(uint64(prm.Limit)).Offset(uint64(offset))
 
-	filterQuery := ""
-	if len(filters) > 0 {
-		filterQuery = "WHERE " + strings.Join(filters, " AND ")
-	}
-
-	query := fmt.Sprintf(`
-		SELECT 
-			p.id,
-			p.title,
-			p.description,
-			p.base_price,
-			pr.discount,
-			c.name AS category_name,
-			i.image,
-			sz.name AS size_name
-		FROM products p
-		LEFT JOIN categories c ON c.id = p.category_id
-		LEFT JOIN products_images i ON i.product_id = p.id
-		LEFT JOIN products_sizes ps ON ps.product_id = p.id
-		LEFT JOIN sizes sz ON sz.id = ps.size_id
-		LEFT JOIN products_promos pp ON pp.product_id = p.id
-		LEFT JOIN promos pr ON pr.id = pp.promo_id
-		%s
-		ORDER BY p.id ASC
-		LIMIT %d OFFSET %d
-	`, filterQuery, Limit, offset)
-
-	rows, err := Pg.Query(c, query)
+	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to build SQL: %w", err)
+	}
+
+	rows, err := Pg.Query(c, sqlStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var (
-			id       int
-			title    string
-			desc     string
-			price    uint64
-			discount sql.NullFloat64
-			category *string
-			image    *string
-			size     *string
-		)
+		var pr Product_ress
+		var images, sizes []string
 
-		if err := rows.Scan(&id, &title, &desc, &price, &discount, &category, &image, &size); err != nil {
-			return nil, err
-		}
-
-		if _, exist := productMap[id]; !exist {
-			productMap[id] = &Product_ress{
-				Id:       id,
-				Title:    title,
-				Desc:     desc,
-				Price:    price,
-				Discount: discount,
-				Category: "",
-				Images:   []string{},
-				Sizes:    []string{},
-			}
-			if category != nil {
-				productMap[id].Category = *category
-			}
+		if err := rows.Scan(
+			&pr.Id,
+			&pr.Title,
+			&pr.Desc,
+			&pr.Price,
+			&pr.Discount,
+			&pr.Category,
+			&images,
+			&sizes,
+		); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
-		if image != nil && !slices.Contains(productMap[id].Images, *image) {
-			productMap[id].Images = append(productMap[id].Images, *image)
-		}
-		if size != nil && !slices.Contains(productMap[id].Sizes, *size) {
-			productMap[id].Sizes = append(productMap[id].Sizes, *size)
-		}
+		pr.Images = images
+		pr.Sizes = sizes
+		products = append(products, pr)
 	}
 
-	for _, v := range productMap {
-		res = append(res, *v)
+	return products, nil
+}
+
+func (p *Product) FavProducts(c context.Context, limit int) ([]Product_ress, error) {
+	var products []Product_ress
+
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	query := psql.
+		Select(
+			"p.id",
+			"p.title",
+			"p.description",
+			"p.base_price",
+			"COALESCE(pr.discount, 0) AS discount",
+			"c.name AS category_name",
+			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
+			"COALESCE(ARRAY_AGG(DISTINCT sz.name) FILTER (WHERE sz.name IS NOT NULL), '{}') AS sizes",
+		).
+		From("products p").
+		LeftJoin("categories c ON c.id = p.category_id").
+		LeftJoin("products_images i ON i.product_id = p.id").
+		LeftJoin("products_sizes ps ON ps.product_id = p.id").
+		LeftJoin("sizes sz ON sz.id = ps.size_id").
+		LeftJoin("products_promos pp ON pp.product_id = p.id").
+		LeftJoin("promos pr ON pr.id = pp.promo_id").
+		Where("p.is_favorite = true").
+		GroupBy("p.id", "c.name", "pr.discount").
+		OrderBy("p.id ASC").
+		Limit(uint64(limit))
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build SQL: %w", err)
 	}
 
-	return res, nil
+	rows, err := Pg.Query(c, sqlStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var pr Product_ress
+		var images, sizes []string
+
+		if err := rows.Scan(
+			&pr.Id,
+			&pr.Title,
+			&pr.Desc,
+			&pr.Price,
+			&pr.Discount,
+			&pr.Category,
+			&images,
+			&sizes,
+		); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+
+		pr.Images = images
+		pr.Sizes = sizes
+		products = append(products, pr)
+	}
+
+	return products, nil
+}
+
+func (p *Product) GetRecommendation(ctx context.Context, id int, limit int) ([]Product_ress, error) {
+	var products []Product_ress
+
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	query := psql.
+		Select(
+			"p2.id",
+			"p2.title",
+			"p2.description",
+			"p2.base_price",
+			"COALESCE(pr.discount, 0) AS discount",
+			"c.name AS category_name",
+			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
+			"COALESCE(ARRAY_AGG(DISTINCT sz.name) FILTER (WHERE sz.name IS NOT NULL), '{}') AS sizes",
+			"COUNT(*) AS frequency",
+		).
+		From("products p1").
+		JoinClause("FULL JOIN products_tags pt ON pt.product_id = p1.id").
+		JoinClause("FULL JOIN products_tags pt2 ON pt2.tag_id = pt.tag_id").
+		JoinClause("FULL JOIN orders_products op ON op.product_id = p1.id").
+		JoinClause("FULL JOIN orders_products op2 ON op2.order_id = op.order_id").
+		JoinClause("FULL JOIN products p2 ON p2.id = pt2.product_id OR p2.id = op2.product_id OR p2.category_id = p1.category_id").
+		LeftJoin("categories c ON c.id = p2.category_id").
+		LeftJoin("products_images i ON i.product_id = p2.id").
+		LeftJoin("products_sizes ps ON ps.product_id = p2.id").
+		LeftJoin("sizes sz ON sz.id = ps.size_id").
+		LeftJoin("products_promos pp ON pp.product_id = p2.id").
+		LeftJoin("promos pr ON pr.id = pp.promo_id").
+		Where(sq.And{
+			sq.Eq{"p1.id": id},
+			sq.NotEq{"p2.id": id},
+		}).
+		GroupBy("p2.id", "c.name", "pr.discount").
+		OrderBy("frequency DESC").
+		Limit(uint64(limit))
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		return nil, fmt.Errorf("error building query: %w", err)
+	}
+
+	rows, err := Pg.Query(ctx, sqlStr, args...)
+	if err != nil {
+		return nil, fmt.Errorf("query error: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var pr Product_ress
+		var images, sizes []string
+
+		if err := rows.Scan(
+			&pr.Id,
+			&pr.Title,
+			&pr.Desc,
+			&pr.Price,
+			&pr.Discount,
+			&pr.Category,
+			&images,
+			&sizes,
+			&pr.Frequency,
+		); err != nil {
+			return nil, fmt.Errorf("scan error: %w", err)
+		}
+
+		pr.Images = images
+		pr.Sizes = sizes
+		products = append(products, pr)
+	}
+
+	return products, nil
 }
