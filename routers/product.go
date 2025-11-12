@@ -15,4 +15,6 @@ func ProductRouter(r *gin.Engine) {
 	cart := r.Group("/cart")
 	cart.Use(middlewares.AuthMiddleware("user"))
 	cart.POST("", c.CreateCart)
+	cart.GET("", c.GetProductCart)
+	cart.GET("/list", c.GetfullCard)
 }

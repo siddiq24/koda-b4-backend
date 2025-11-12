@@ -307,12 +307,13 @@ func (p *Product) CreateCart(c context.Context, req Cart_Request) (Cart_Request,
 }
 
 type ProductCart struct {
-	Id       int
-	Image    string
-	Title    string
-	Qty      int
-	Size     string
-	Variants string
+	Id       int     `json:"id"`
+	Image    string  `json:"image"`
+	Title    string  `json:"title"`
+	Qty      int     `json:"quantity"`
+	Size     string  `json:"size"`
+	Variants string  `json:"variant"`
+	Price    float64 `json:"price"`
 }
 
 func (p *Product) GetProductCart(c context.Context, id int) ([]ProductCart, error) {
@@ -335,7 +336,7 @@ func (p *Product) GetProductCart(c context.Context, id int) ([]ProductCart, erro
 		GROUP BY p.id, pi.id, s.id, v.id, op.qty;;
 	`, id)
 	if err != nil {
-		return nil, fmt.Errorf("Error binding query %w", err)
+		return nil, fmt.Errorf("error binding query %w", err)
 	}
 
 	var ress []ProductCart
@@ -351,9 +352,75 @@ func (p *Product) GetProductCart(c context.Context, id int) ([]ProductCart, erro
 			&rsp.Variants,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("Scan error %w", err)
+			return nil, fmt.Errorf("scan error %w", err)
 		}
 		ress = append(ress, rsp)
 	}
 	return ress, nil
+}
+
+type OrderRessponse struct {
+	Products []ProductCart `json:"products"`
+	SubTotal float64       `json:"sub_total"`
+}
+
+func (p *Product) GetListCart(c context.Context, id int) (OrderRessponse, error) {
+	rows, err := Pg.Query(c, `
+	SELECT 
+		p.id AS product_id,
+		p.title,
+		p.base_price,
+		s.name AS size_name,
+		v.name AS variant_name,
+		op.qty,
+		(p.base_price + s.additional_price) * op.qty AS sub_total,
+		COALESCE(ARRAY_AGG(DISTINCT pi.image) FILTER (WHERE pi.image IS NOT NULL), '{}') AS images
+	FROM orders_products op
+	LEFT JOIN products p ON p.id = op.product_id
+	LEFT JOIN sizes s ON s.id = op.size_id
+	LEFT JOIN variants v ON v.id = op.varian_id
+	LEFT JOIN products_images pi ON pi.product_id = p.id
+	LEFT JOIN orders o ON o.id = op.order_id
+	WHERE o.user_id = $1
+	GROUP BY p.id, s.id, v.id, op.qty;
+	`, id)
+
+	if err != nil {
+		return OrderRessponse{}, fmt.Errorf("error binding query %w", err)
+	}
+
+	defer rows.Close()
+	prod := []ProductCart{}
+
+	var subTotal float64
+	for rows.Next() {
+		var (
+			id     int
+			title  string
+			image  string
+			qty    float64
+			size   string
+			varian string
+			price  float64
+		)
+
+		if err := rows.Scan(&id, &title, &size, &varian, &qty, &price, &image); err != nil {
+			return OrderRessponse{}, fmt.Errorf("error scan : %w", err)
+		}
+
+		subTotal += price
+		prod = append(prod, ProductCart{
+			Id:       id,
+			Image:    image,
+			Title:    title,
+			Qty:      int(qty),
+			Size:     size,
+			Variants: varian,
+			Price:    price,
+		})
+	}
+	return OrderRessponse{
+		Products: prod,
+		SubTotal: subTotal,
+	}, nil
 }

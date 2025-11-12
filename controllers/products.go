@@ -135,7 +135,13 @@ func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 }
 
 func (pc *ProductsController) CreateCart(c *gin.Context) {
+	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+	}
+	id := int((*claim)["id"].(float64))
 	var req models.Cart_Request
+	req.UserId = id
 	if err := c.ShouldBind(&req); err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Request Invalid", err.Error())
 		return
@@ -154,7 +160,11 @@ func (pc *ProductsController) CreateCart(c *gin.Context) {
 }
 
 func (pc *ProductsController) GetProductCart(c *gin.Context) {
-	id := 
+	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+	}
+	id := int((*claim)["id"].(float64))
 	ress, err := pc.Product.GetProductCart(c.Request.Context(), id)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
@@ -163,8 +173,29 @@ func (pc *ProductsController) GetProductCart(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
-		Message: "Add product to cart successfully",
+		Message: "Get product from cart successfully",
 		Result:  ress,
 	})
 }
 
+func (pc *ProductsController) GetfullCard(c *gin.Context) {
+	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+		return
+	}
+	id := int((*claim)["id"].(float64))
+
+	ress, err := pc.Product.GetListCart(c.Request.Context(), id)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Server error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Get all list cart successfully",
+		Result:  ress,
+	})
+
+}
