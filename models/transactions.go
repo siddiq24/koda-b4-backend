@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 )
@@ -109,4 +110,72 @@ func (t Transactions) CreateTransactions(c context.Context, req Transaction_Requ
 	}
 
 	return nil
+}
+
+type History_res struct {
+	Id      int    `json:"id"`
+	Invoice string `json:"invoice"`
+	Date    string `json:"date"`
+	Total   uint64 `json:"total"`
+	Status  string `json:"status"`
+	Image   string `json:"image"`
+}
+
+type History_req struct {
+	User_id int `json:"-"`
+	Month   int `json:"month"`
+	Status  int `json:"status"`
+	Page    int `json:"date"`
+	Limit   int `json:"total"`
+}
+
+func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_res, error) {
+	rows, err := Pg.Query(c, `
+		SELECT 
+			o.invoice, 	
+			o.created_at, 	
+			o.total_order,
+			s.name,
+			MIN(pi.image)
+		FROM orders o
+		LEFT JOIN orders_products op ON op.invoice = o.invoice
+		LEFT JOIN products_images pi ON pi.product_id = op.product_id
+		LEFT JOIN status s ON s.id = o.status_id
+		WHERE o.user_id = $1
+		GROUP BY o.invoice, o.created_at, o.total_order, s.name
+		ORDER BY o.created_at DESC
+	`, req.User_id)
+
+	if err != nil {
+		return nil, fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
+
+	var ress []History_res
+	id := 0
+	for rows.Next() {
+		var (
+			invoice string
+			created time.Time
+			total   uint64
+			status  string
+			image   sql.NullString
+		)
+
+		rows.Scan(&invoice, &created, &total, &status, &image)
+
+		ress = append(ress, History_res{
+			Id:      id,
+			Invoice: invoice,
+			Date:    created.Format("2006-01-02"),
+			Total:   total,
+			Status:  status,
+			Image:   image.String,
+		})
+		id++
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+	return ress, nil
 }

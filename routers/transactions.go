@@ -11,4 +11,5 @@ func TransactionRouter(r *gin.Engine) {
 	transactions := r.Group("/transactions")
 	transactions.Use(middlewares.AuthMiddleware("user"))
 	transactions.POST("", c.CreateTransactions)
+	transactions.GET("/history", c.GetHistory)
 }
