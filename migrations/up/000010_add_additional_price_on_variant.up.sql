@@ -1,0 +1,2 @@
+ALTER TABLE variants
+ADD COLUMN additional_price NUMERIC NOT NULL DEFAULT 0;
