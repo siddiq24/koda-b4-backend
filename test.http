@@ -31,12 +31,12 @@ POST {{BASE_URL}}/auth/login
 Content-Type: application/json
 
 {
-    "email": "sidik@wisnu.com",
+    "email": "user1@fore.com",
     "password": "12345678"
 }
 
 ###================= TOKEN =================###
-@token =Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjMwMDgyMTIsImlkIjoyLCJyb2xlIjoidXNlciJ9.pj67Uv_uCYjhxcmlvoK2QnMAt3t21SKJ3BvtbfSNgIc
+@token =Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjMwMjk3MzAsImlkIjoyLCJyb2xlIjoidXNlciJ9.TmwfVhRUu1fXr4hWQUrGuQS1m2JYBiF405Q-EQSea1g
 ###=========================================###
 
 
@@ -533,12 +533,33 @@ Authorization: {{token}}
 Content-Type: application/json
 
 {
-  "product_id" : 1,
+  "product_id" : 24,
   "varian_id" : 1,
   "size_id" : 1,
-  "quantity" : 1
+  "quantity" : 3
 }
 
 ### get history
-GET {{BASE_URL}}/transactions/history
+GET {{BASE_URL}}/cart/list
+Authorization: {{token}}
+
+
+
+#################################################
+POST  {{BASE_URL}}/transactions
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name" : "yanto",
+  "address" : "jl mangga 2",
+  "phone" : "098765432",
+  "email" : "yanto@fore.com",
+  "payment_method_id" : 1,
+  "delivery_id" : 1
+}
+
+
+###
+GET  {{BASE_URL}}/transactions/history/VIA-1763027361-2
 Authorization: {{token}}
