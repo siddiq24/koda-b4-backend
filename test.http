@@ -563,3 +563,7 @@ Content-Type: application/json
 ###
 GET  {{BASE_URL}}/transactions/history/VIA-1763027361-2
 Authorization: {{token}}
+
+
+###
+GET https://backend-coffee-shop-gn3kxblu3-siddiqs-projects-d04cdf38.vercel.app/products
