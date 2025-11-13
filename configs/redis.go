@@ -19,15 +19,18 @@ func Redis() *redis.Client {
 	redisOnce.Do(func() {
 		godotenv.Load()
 
-		// Support Upstash Redis REST API atau standard Redis
 		redisURL := os.Getenv("REDIS_URL")
-		redisPassword := os.Getenv("REDIS_PASSWORD")
+		if redisURL == "" {
+			log.Fatal("❌ REDIS_URL not found in environment variables")
+		}
 
-		redisClient = redis.NewClient(&redis.Options{
-			Addr:     redisURL,
-			Password: redisPassword,
-			DB:       0,
-		})
+		// ✅ Gunakan redis.ParseURL agar format rediss:// bisa dibaca
+		opt, err := redis.ParseURL(redisURL)
+		if err != nil {
+			log.Fatalf("❌ Failed to parse Redis URL: %v", err)
+		}
+
+		redisClient = redis.NewClient(opt)
 
 		ctx := context.Background()
 		if err := redisClient.Ping(ctx).Err(); err != nil {
