@@ -7,6 +7,7 @@ import (
 )
 
 func ProfileRouter(r *gin.Engine) {
-	prof := r.Group("/profile").Use(middlewares.AuthMiddleware("user"))
+	prof := r.Group("/profile")
+	prof.Use(middlewares.AuthMiddleware("user"))
 	prof.PATCH("", controllers.UpdateProfile)
 }

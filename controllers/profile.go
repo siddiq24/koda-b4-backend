@@ -58,4 +58,5 @@ func UpdateProfile(c *gin.Context) {
 		Message: "Sukses mengupdate profile",
 		Result:  profile,
 	})
+
 }

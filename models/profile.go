@@ -29,4 +29,5 @@ func EditProfile(c context.Context, p Profile) (Profile, error) {
 		return Profile{}, err
 	}
 	return p, nil
+
 }
