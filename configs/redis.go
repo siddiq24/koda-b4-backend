@@ -17,7 +17,9 @@ var (
 
 func Redis() *redis.Client {
 	redisOnce.Do(func() {
-		godotenv.Load()
+		if os.Getenv("VERCEL") == "" {
+			godotenv.Load()
+		}
 
 		redisURL := os.Getenv("REDIS_URL")
 		if redisURL == "" {

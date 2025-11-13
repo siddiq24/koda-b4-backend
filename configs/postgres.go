@@ -18,7 +18,9 @@ var (
 
 func InitPostgres() *pgxpool.Pool {
 	pgOnce.Do(func() {
-		godotenv.Load()
+		if os.Getenv("VERCEL") == "" {
+			godotenv.Load()
+		}
 
 		// Support both individual env vars and DATABASE_URL
 		connString := os.Getenv("PSQL_URL")
