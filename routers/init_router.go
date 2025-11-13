@@ -9,7 +9,9 @@ import (
 )
 
 func InitRouter() *gin.Engine {
-	r := gin.Default()
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.Recovery())
 	r.Use(middlewares.Cors())
 
 	AuthRouter(r)

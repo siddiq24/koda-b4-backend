@@ -6,6 +6,7 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/siddiq24/backend-coffee-shop/docs"
+	"github.com/siddiq24/backend-coffee-shop/models"
 	"github.com/siddiq24/backend-coffee-shop/routers"
 )
 
@@ -24,9 +25,11 @@ import (
 // @tag.description User management endpoints (CRUD operations)
 // @BasePath  /
 func main() {
-	if os.Getenv("VERCEL") == "" {
-		godotenv.Load()
-	}
+	godotenv.Load()
+
+	_ = models.GetDB()
+	_ = models.GetRedis()
+
 	r := routers.InitRouter()
 
 	port := os.Getenv("PORT")

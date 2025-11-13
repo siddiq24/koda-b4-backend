@@ -11,8 +11,5 @@
             "src": "/(.*)",
             "dest": "/api/index.go"
         }
-    ],
-    "env": {
-        "VERCEL": true
-    }
+    ]
 }
