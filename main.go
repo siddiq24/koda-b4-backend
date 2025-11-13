@@ -24,7 +24,9 @@ import (
 // @tag.description User management endpoints (CRUD operations)
 // @BasePath  /
 func main() {
-	godotenv.Load()
+	if os.Getenv("VERCEL") == "" {
+		godotenv.Load()
+	}
 	r := routers.InitRouter()
 
 	port := os.Getenv("PORT")

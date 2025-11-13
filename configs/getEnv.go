@@ -19,7 +19,9 @@ type ENV struct {
 }
 
 func GetEnv() ENV {
-	godotenv.Load()
+	if os.Getenv("VERCEL") == "" {
+		godotenv.Load()
+	}
 	return ENV{
 		PORT:              os.Getenv("PORT"),
 		PORT_ACCESS:       os.Getenv("PORT_ACCESS"),
