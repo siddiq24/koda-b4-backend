@@ -11,7 +11,7 @@ import (
 type Transaction_Request struct {
 	UserId           int    `json:"-"`
 	Name             string `json:"name"`
-	Address          string `json:"adress"`
+	Address          string `json:"address"`
 	Phone            string `json:"phone"`
 	Email            string `json:"email"`
 	PaymentMethod_id int    `json:"payment_method_id"`
@@ -49,13 +49,11 @@ func (t Transactions) CreateTransactions(c context.Context, req Transaction_Requ
 		}
 	}()
 
-	// generate invoice
 	invoice := fmt.Sprintf("VIA-%d-%d", time.Now().Unix(), req.UserId)
 	fmt.Println("Invoice:", invoice)
 
-	// ambil data dari cart
 	rows, err := tx.Query(c, `
-		SELECT product_id, size_id, varian_id, qty, subtotal, name
+		SELECT product_id, size_id, varian_id, qty, subtotal, product_name
 		FROM carts
 		WHERE user_id = $1`, req.UserId)
 	if err != nil {
@@ -63,38 +61,52 @@ func (t Transactions) CreateTransactions(c context.Context, req Transaction_Requ
 	}
 	defer rows.Close()
 
-	var subTotal float64
+	type CartItem struct {
+		ProductID int
+		SizeID    int
+		VarianID  int
+		Qty       int
+		Subtotal  float64
+		Name      string
+	}
+
+	var items []CartItem
 
 	for rows.Next() {
-		var prodId, sizeId, varianId, qty int
-		var subtotal float64
-		var name string
-
-		if err = rows.Scan(&prodId, &sizeId, &varianId, &qty, &subtotal, &name); err != nil {
+		var i CartItem
+		if err = rows.Scan(&i.ProductID, &i.SizeID, &i.VarianID, &i.Qty, &i.Subtotal, &i.Name); err != nil {
 			return fmt.Errorf("error scanning cart: %w", err)
 		}
+		items = append(items, i)
+	}
+	rows.Close()
 
-		// insert ke orders_products
+	if len(items) == 0 {
+		return fmt.Errorf("no items found in cart")
+	}
+
+	var subTotal float64
+	fmt.Println(req.UserId)
+
+	for _, i := range items {
 		_, err = tx.Exec(c, `
-			INSERT INTO orders_products (invoice, user_id, product_id, size_id, varian_id, qty, subtotal, name)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		`, invoice, req.UserId, prodId, sizeId, varianId, qty, subtotal, name)
+			INSERT INTO orders_products (invoice, product_id, size_id, varian_id, qty, subtotal, name)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		`, invoice, i.ProductID, i.SizeID, i.VarianID, i.Qty, i.Subtotal, i.Name)
 		if err != nil {
 			return fmt.Errorf("failed inserting order_products: %w", err)
 		}
 
-		// update stok produk
 		_, err = tx.Exec(c, `
 			UPDATE products SET stock = stock - $1 WHERE id = $2
-		`, qty, prodId)
+		`, i.Qty, i.ProductID)
 		if err != nil {
 			return fmt.Errorf("failed updating stock: %w", err)
 		}
 
-		subTotal += subtotal
+		subTotal += i.Subtotal
 	}
 
-	// insert ke orders
 	_, err = tx.Exec(c, `
 		INSERT INTO orders (user_id, email, fullname, phone, address, payment_method_id, delivery_id, total_order, invoice, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -103,7 +115,6 @@ func (t Transactions) CreateTransactions(c context.Context, req Transaction_Requ
 		return fmt.Errorf("failed inserting orders: %w", err)
 	}
 
-	// hapus cart
 	_, _ = tx.Exec(c, `DELETE FROM carts WHERE user_id = $1`, req.UserId)
 
 	if err = tx.Commit(c); err != nil {
@@ -126,8 +137,8 @@ type History_req struct {
 	User_id int `json:"-"`
 	Month   int `json:"month"`
 	Status  int `json:"status"`
-	Page    int `json:"date"`
-	Limit   int `json:"total"`
+	Page    int `json:"page"`
+	Limit   int `json:"limit"`
 }
 
 func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_res, error) {
@@ -204,7 +215,7 @@ type OrderItem struct {
 	Variant     string  `json:"variant"`
 }
 
-func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, ID int) (*TransactionHistory, error) {
+func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, userID int) (*TransactionHistory, error) {
 	query := `
 		SELECT 
 			o.invoice,
@@ -252,7 +263,7 @@ func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, 
 	var itemsJSON []byte
 	var updatedAt sql.NullTime
 
-	err := Pg.QueryRow(c, query, invoice, ID).Scan(
+	err := Pg.QueryRow(c, query, invoice, userID).Scan(
 		&th.Invoice,
 		&th.CustomerName,
 		&th.CustomerPhone,
