@@ -18,6 +18,7 @@ func InitRouter() *gin.Engine {
 	OrderRouter(r)
 	AdminRouter(r)
 	ProfileRouter(r)
+	TransactionRouter(r)
 
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
