@@ -478,3 +478,9 @@ func (a *Admin) DeleteProductImage(c context.Context, productId, imageId int) er
 	_, err := Pg.Exec(c, query, imageId, productId)
 	return err
 }
+
+func (a *Admin) AddFavoriteProduct(c context.Context, productId int) error {
+	query := `UPDATE TABLE`
+	_, err := Pg.Exec(c, query, productId)
+	return err
+}

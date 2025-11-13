@@ -140,13 +140,13 @@ func (pc *ProductsController) CreateCart(c *gin.Context) {
 		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
 	}
 	id := int((*claim)["id"].(float64))
-	var req models.Cart_Request
+	var req models.CartRequest
 	req.UserId = id
 	if err := c.ShouldBind(&req); err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Request Invalid", err.Error())
 		return
 	}
-	ress, err := pc.Product.CreateCart(c.Request.Context(), req)
+	ress, err := pc.Product.AddToCart(c.Request.Context(), req)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
 		return
@@ -165,7 +165,7 @@ func (pc *ProductsController) GetProductCart(c *gin.Context) {
 		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
 	}
 	id := int((*claim)["id"].(float64))
-	ress, err := pc.Product.GetProductCart(c.Request.Context(), id)
+	ress, err := pc.Product.GetCartItemByID(c.Request.Context(), id)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
 		return
@@ -186,7 +186,7 @@ func (pc *ProductsController) GetfullCard(c *gin.Context) {
 	}
 	id := int((*claim)["id"].(float64))
 
-	ress, err := pc.Product.GetListCart(c.Request.Context(), id)
+	ress, err := pc.Product.GetCartByUserID(c.Request.Context(), id)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Server error", err.Error())
 		return

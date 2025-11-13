@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/siddiq24/backend-coffee-shop/configs"
 )
 
 type AuthRequest struct {
@@ -22,8 +19,6 @@ type AuthResponse struct {
 	Password string `json:"password"`
 	Role     string `json:"role"`
 }
-
-var Pg *pgxpool.Pool = configs.InitPostgres()
 
 type Auth struct{}
 

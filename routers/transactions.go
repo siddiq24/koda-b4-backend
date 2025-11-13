@@ -7,9 +7,12 @@ import (
 )
 
 func TransactionRouter(r *gin.Engine) {
-	var c controllers.TransactionControoller
+	var c controllers.TransactionController
 	transactions := r.Group("/transactions")
 	transactions.Use(middlewares.AuthMiddleware("user"))
-	transactions.POST("", c.CreateTransactions)
-	transactions.GET("/history", c.GetHistory)
+	{
+		transactions.POST("", c.CreateTransactions)
+		transactions.GET("/history", c.GetHistory)
+		transactions.GET("/history/:invoice", c.GetHistoryByInvoice)
+	}
 }

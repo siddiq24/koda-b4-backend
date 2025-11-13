@@ -1,0 +1,24 @@
+CREATE TABLE users(
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    email VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR NOT NULL,
+    role VARCHAR(20) DEFAULT 'user',
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMP
+);
+
+CREATE TABLE users_tokens(
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    token VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP,
+    expired_at TIMESTAMP
+);
+
+CREATE TABLE forgot_pass_token(
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    user_id BIGINT REFERENCES users(id),
+    token VARCHAR(255) NOT NULL UNIQUE,
+    created_at TIMESTAMP,
+    expired_at TIMESTAMP
+);

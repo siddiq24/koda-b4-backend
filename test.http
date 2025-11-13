@@ -1,0 +1,569 @@
+@BASE_URL=http://localhost:8085
+
+
+
+###=========================================###
+###             AUTHENTICATION              ###
+###=========================================###
+
+### REGISTER
+POST {{BASE_URL}}/auth/register
+Content-Type: application/json
+
+{
+    "fullname": "User",
+    "email": "user1@fore.com",
+    "password": "12345678",
+    "role": "user"
+}
+
+
+### LOGIN ADMIN
+POST {{BASE_URL}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@fore.com",
+    "password": "12345678"
+}
+### LOGIN USER
+POST {{BASE_URL}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "user1@fore.com",
+    "password": "12345678"
+}
+
+###================= TOKEN =================###
+@token =Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjMwMjk3MzAsImlkIjoyLCJyb2xlIjoidXNlciJ9.TmwfVhRUu1fXr4hWQUrGuQS1m2JYBiF405Q-EQSea1g
+###=========================================###
+
+
+###=========================================###
+###                 PROMOS                  ###
+###=========================================###
+
+###  Get Promo
+GET  {{BASE_URL}}/promos
+
+###=========================================###
+###        GET PRODUCTS WITH FILTER         ###
+###=========================================###
+
+###  Get products with filter
+GET  {{BASE_URL}}/products?page=1&search=&cat=&minPrice=&maxPrice=&shortBy=title&asc=true&limit=5
+###  Get products with filter
+GET  {{BASE_URL}}/products/5/recomendation?limit=5
+
+###=========================================###
+###                  ORDER                  ###
+###=========================================###
+
+### Create order
+POST {{BASE_URL}}/order
+Authorization: {{BASE_URL}}
+Content-Type: application/json
+
+{
+  "shipping_id": 1,
+  "payment_method_id": 2,
+  "no_order": "ORD-20251110-006",
+  "status_id": 1,
+  "promo_id": 1,
+  "products": [
+    {
+      "id": 10,
+      "size_id": 2,
+      "variant_id": 1,
+      "qty": 2,
+      "total": 50000
+    },
+    {
+      "id": 11,
+      "size_id": 1,
+      "variant_id": 2,
+      "qty": 1,
+      "total": 25000
+    }
+  ]
+}
+
+###
+POST {{BASE_URL}}/admin/products
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "image": [file1.img, file2.img],
+  "title": "title product",
+  "price": 30000,
+  "desc": "description product"
+
+}
+
+
+###############################################
+###             AUTHENTICATION              ###
+###############################################
+POST {{BASE_URL}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@example.com",
+  "password": "admin123"
+}
+
+###############################################
+###            PRODUCTS ENDPOINTS           ###
+###############################################
+
+### Get All Products (with pagination and search)
+GET {{BASE_URL}}/admin/products?page=1&search=coffee
+Authorization: {{token}}
+
+### Get All Products (without filters)
+GET {{BASE_URL}}/admin/products
+Authorization: {{token}}
+
+### Create Product
+POST {{BASE_URL}}/admin/products
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "title": "Espresso Premium",
+  "description": "Rich and bold espresso coffee",
+  "base_price": 35000,
+  "stock": 100,
+  "category_id": 1,
+  "images": [
+    {
+      "img": "espresso-1.jpg"
+    },
+    {
+      "img": "espresso-2.jpg"
+    }
+  ],
+  "sizes": [1, 2, 3]
+}
+
+### Update Product
+PATCH {{BASE_URL}}/admin/products/51
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "title": "Espresso Premium Updated",
+  "description": "Updated description",
+  "base_price": 40000,
+  "stock": 150,
+  "category_id": 1
+}
+
+### Update Product (partial update)
+PATCH {{BASE_URL}}/admin/products/51
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "stock": 200
+}
+
+### Delete Product (soft delete)
+DELETE {{BASE_URL}}/admin/products/51
+Authorization: {{token}}
+
+###############################################
+###           CATEGORIES ENDPOINTS          ###
+###############################################
+
+### Get All Categories
+GET {{BASE_URL}}/admin/categories
+Authorization: {{token}}
+
+### Create Category
+POST {{BASE_URL}}/admin/categories
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name": "Hot Drinks"
+}
+
+### Update Category
+PATCH {{BASE_URL}}/admin/categories/1
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name": "Hot Beverages"
+}
+
+### Delete Category
+DELETE {{BASE_URL}}/admin/categories/1
+Authorization: {{token}}
+
+###############################################
+###          TRANSACTIONS ENDPOINTS         ###
+###############################################
+
+### Get All Transactions (with pagination)
+GET {{BASE_URL}}/admin/transactions?page=1
+Authorization: {{token}}
+
+### Get All Transactions (with status filter)
+GET {{BASE_URL}}/admin/transactions?page=1&status=pending
+Authorization: {{token}}
+
+### Get All Transactions (without filters)
+GET {{BASE_URL}}/admin/transactions
+Authorization: {{token}}
+
+### Create Transaction
+POST {{BASE_URL}}/admin/transactions
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "user_id": 5,
+  "shipping_id": 1,
+  "total_order": 150000,
+  "status_id": 1,
+  "promo_id": null,
+  "products": [
+    {
+      "product_id": 1,
+      "size_id": 2,
+      "varian_id": null,
+      "qty": 2
+    },
+    {
+      "product_id": 3,
+      "size_id": 1,
+      "varian_id": 1,
+      "qty": 1
+    }
+  ]
+}
+
+### Update Transaction Status
+PATCH {{BASE_URL}}/admin/transactions/13
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "status_id": 2
+}
+
+### Delete Transaction
+DELETE {{BASE_URL}}/admin/transactions/1
+Authorization: {{token}}
+
+###############################################
+###             USERS ENDPOINTS             ###
+###############################################
+
+### Get All Users (with pagination and search)
+GET {{BASE_URL}}/admin/users?page=1&search=john
+Authorization: {{token}}
+
+### Get All Users (without filters)
+GET {{BASE_URL}}/admin/users
+Authorization: {{token}}
+
+### Create User
+POST {{BASE_URL}}/admin/users
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com",
+  "password": "password123",
+  "role": "user"
+}
+
+### Create Admin User
+POST {{BASE_URL}}/admin/users
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "email": "newadmin@example.com",
+  "password": "admin123456",
+  "role": "admin"
+}
+
+### Update User
+PATCH {{BASE_URL}}/admin/users/5
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "email": "updated@example.com",
+  "role": "admin"
+}
+
+### Update User (partial update - only role)
+PATCH {{BASE_URL}}/admin/users/5
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "role": "user"
+}
+
+### Delete User (soft delete)
+DELETE {{BASE_URL}}/admin/users/5
+Authorization: {{token}}
+
+###############################################
+###        PRODUCT IMAGES ENDPOINTS         ###
+###############################################
+
+### Get Specific Product Image
+GET {{BASE_URL}}/admin/products/1/images/1
+Authorization: {{token}}
+
+### Add Product Image
+POST {{BASE_URL}}/admin/products/1/images
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "image": "new-product-image.jpg"
+}
+
+### Update Product Image
+PATCH {{BASE_URL}}/admin/products/1/images/1
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "image": "updated-product-image.jpg"
+}
+
+### Delete Product Image
+DELETE {{BASE_URL}}/admin/products/1/images/1
+Authorization: {{token}}
+
+###############################################
+###           ERROR TESTING CASES           ###
+###############################################
+
+### Test - Invalid Product ID
+GET {{BASE_URL}}/admin/products/abc
+Authorization: {{token}}
+
+### Test - Missing Required Fields (Create Product)
+POST {{BASE_URL}}/admin/products
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "title": "Incomplete Product"
+}
+
+### Test - Invalid JSON
+POST {{BASE_URL}}/admin/products
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "title": "Invalid JSON",
+  "base_price": "not a number"
+}
+
+### Test - Unauthorized Access (without token)
+GET {{BASE_URL}}/admin/products
+
+### Test - Invalid Token
+GET {{BASE_URL}}/admin/products
+Authorization: Bearer invalid_token_12345
+
+###############################################
+###          BULK OPERATIONS EXAMPLE        ###
+###############################################
+
+### Create Multiple Categories
+# Category 1
+POST {{BASE_URL}}/admin/categories
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name": "Coffee"
+}
+
+###
+
+# Category 2
+POST {{BASE_URL}}/admin/categories
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name": "Tea"
+}
+
+###
+
+# Category 3
+POST {{BASE_URL}}/admin/categories
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name": "Snacks"
+}
+
+###############################################
+###        ADVANCED QUERY EXAMPLES          ###
+###############################################
+
+### Search Products with Specific Term
+GET {{BASE_URL}}/admin/products?page=1&search=latte
+Authorization: {{token}}
+
+### Get Second Page of Products
+GET {{BASE_URL}}/admin/products?page=2
+Authorization: {{token}}
+
+### Filter Transactions by Status "completed"
+GET {{BASE_URL}}/admin/transactions?status=completed
+Authorization: {{token}}
+
+### Search Users by Email Domain
+GET {{BASE_URL}}/admin/users?search=@gmail.com
+Authorization: {{token}}
+
+###############################################
+###           COMPLEX WORKFLOWS             ###
+###############################################
+
+### Workflow 1: Create Complete Product
+# Step 1: Create Product
+POST {{BASE_URL}}/admin/products
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "title": "Cappuccino Special",
+  "description": "Creamy cappuccino with foam art",
+  "base_price": 42000,
+  "stock": 75,
+  "category_id": 1,
+  "images": [
+    {
+      "img": "cappuccino-main.jpg"
+    }
+  ],
+  "sizes": [1, 2]
+}
+
+###
+
+# Step 2: Add More Images (assuming product_id = 10)
+POST {{BASE_URL}}/admin/products/10/images
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "image": "cappuccino-side.jpg"
+}
+
+###
+
+# Step 3: Verify Product Created
+GET {{BASE_URL}}/admin/products?search=cappuccino
+Authorization: {{token}}
+
+###
+
+### Workflow 2: Process Order
+# Step 1: Create Transaction
+POST {{BASE_URL}}/admin/transactions
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "user_id": 3,
+  "shipping_id": 2,
+  "total_order": 85000,
+  "status_id": 1,
+  "products": [
+    {
+      "product_id": 10,
+      "size_id": 2,
+      "qty": 2
+    }
+  ]
+}
+
+###
+
+# Step 2: Update Status to Processing (assuming order_id = 15)
+PATCH {{BASE_URL}}/admin/transactions/15
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "status_id": 2
+}
+
+###
+
+# Step 3: Update Status to Completed
+PATCH {{BASE_URL}}/admin/transactions/15
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "status_id": 3
+}
+
+
+
+###############################################
+
+
+### API Version
+POST  {{BASE_URL}}/cart
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "product_id" : 24,
+  "varian_id" : 1,
+  "size_id" : 1,
+  "quantity" : 3
+}
+
+### get history
+GET {{BASE_URL}}/cart/list
+Authorization: {{token}}
+
+
+
+#################################################
+POST  {{BASE_URL}}/transactions
+Authorization: {{token}}
+Content-Type: application/json
+
+{
+  "name" : "yanto",
+  "address" : "jl mangga 2",
+  "phone" : "098765432",
+  "email" : "yanto@fore.com",
+  "payment_method_id" : 1,
+  "delivery_id" : 1
+}
+
+
+###
+GET  {{BASE_URL}}/transactions/history/VIA-1763027361-2
+Authorization: {{token}}
+
+
+###
+GET https://backend-coffee-shop-gn3kxblu3-siddiqs-projects-d04cdf38.vercel.app/products

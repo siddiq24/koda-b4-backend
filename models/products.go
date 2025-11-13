@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sq "github.com/Masterminds/squirrel"
+	"github.com/jackc/pgx/v5"
 )
 
 type Product_Params struct {
@@ -198,7 +199,7 @@ func (p *Product) FavProducts(c context.Context, limit int) ([]Product_ress, err
 	return products, nil
 }
 
-func (p *Product) GetRecommendation(ctx context.Context, id int, limit int) ([]Product_ress, error) {
+func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Product_ress, error) {
 	var products []Product_ress
 
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
@@ -240,7 +241,7 @@ func (p *Product) GetRecommendation(ctx context.Context, id int, limit int) ([]P
 		return nil, fmt.Errorf("error building query: %w", err)
 	}
 
-	rows, err := Pg.Query(ctx, sqlStr, args...)
+	rows, err := Pg.Query(c, sqlStr, args...)
 	if err != nil {
 		return nil, fmt.Errorf("query error: %w", err)
 	}
@@ -272,155 +273,227 @@ func (p *Product) GetRecommendation(ctx context.Context, id int, limit int) ([]P
 	return products, nil
 }
 
-type Cart_Request struct {
+type CartRequest struct {
 	OrderId   int `json:"order_id" form:"order_id"`
 	UserId    int `json:"user_id" form:"user_id"`
 	ProductId int `json:"product_id" form:"product_id"`
 	VarianId  int `json:"varian_id" form:"varian_id"`
-	SizeId    int `json:"size_id"`
+	SizeId    int `json:"size_id" form:"size_id"`
 	Qty       int `json:"quantity" form:"quantity"`
 }
 
-func (p *Product) CreateCart(c context.Context, req Cart_Request) (Cart_Request, error) {
-	var order_id uint64
-	if err := Pg.QueryRow(c, `INSERT INTO orders(user_id) VALUES ($1) RETURNING id `, req.UserId).Scan(&order_id); err != nil {
-		return Cart_Request{}, fmt.Errorf("failed insert product: %w", err)
-	}
-	if _, err := Pg.Exec(c, `INSERT INTO orderss_products(order_id, product_id, varian_id, size_id, qty) VALUES ($1, $2, $3, $4, $5)`); err != nil {
-		return Cart_Request{}, fmt.Errorf("failed insert cart %w", err)
-	}
-	if err := Pg.QueryRow(c, `
-		SELECT 
-			p.id,
-			s.name,
-			v.name
-		FROM orders_products op
-		LEFT JOIN products p ON p.id = op.product_id
-		LEFT JOIN sizes s ON s.id = op.size_id
-		LEFT JOIN variants v ON v.id = op.varian_id
-		WHERE op.order_id = $1
-	`, req.UserId).Scan(&req.OrderId, &req.ProductId, &req.SizeId, &req.VarianId, &req.Qty); err != nil {
-		return Cart_Request{}, fmt.Errorf("failed insert to products %w", err)
-	}
-
-	return req, nil
+type CartItem struct {
+	ID          int64   `json:"id"`
+	UserId      int     `json:"user_id"`
+	ProductId   int     `json:"product_id"`
+	VarianId    *int    `json:"varian_id"`
+	SizeId      *int    `json:"size_id"`
+	Qty         int     `json:"quantity"`
+	Subtotal    float64 `json:"subtotal"`
+	ProductName string  `json:"product_name"`
 }
 
-type ProductCart struct {
-	Id       int     `json:"id"`
-	Image    string  `json:"image"`
-	Title    string  `json:"title"`
-	Qty      int     `json:"quantity"`
-	Size     string  `json:"size"`
-	Variants string  `json:"variant"`
-	Price    float64 `json:"price"`
-}
+func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, error) {
+	var basePrice float64
+	var productName string
 
-func (p *Product) GetProductCart(c context.Context, id int) ([]ProductCart, error) {
-	rows, err := Pg.Query(c, `
-		SELECT 
-			p.id,
-			p.title,
-			pi.image,
-			s.name,
-			v.name,
-			op.qty,
-			MAX(op.order_id)
-		FROM orders_products op
-		FULL JOIN products p ON p.id = op.product_id
-		FULL JOIN sizes s ON s.id = op.size_id
-		FULL JOIN variants v ON v.id = op.varian_id
-		full JOIN products_images pi ON pi.product_id = p.id
-		left join orders o On o.id = op.order_id
-		WHERE o.user_id = $1
-		GROUP BY p.id, pi.id, s.id, v.id, op.qty;;
-	`, id)
+	err := Pg.QueryRow(c,
+		"SELECT base_price, title FROM products WHERE id = $1 AND deleted_at IS NULL",
+		req.ProductId,
+	).Scan(&basePrice, &productName)
 	if err != nil {
-		return nil, fmt.Errorf("error binding query %w", err)
+		return nil, fmt.Errorf("product not found: %w", err)
 	}
 
-	var ress []ProductCart
+	subtotal := basePrice * float64(req.Qty)
+
+	var existingCartID int64
+	var existingQty int
+
+	err = Pg.QueryRow(c, `
+		SELECT id, qty FROM carts 
+		WHERE user_id = $1 AND product_id = $2 
+		AND (varian_id = $3 OR ($3 IS NULL AND varian_id IS NULL))
+		AND (size_id = $4 OR ($4 IS NULL AND size_id IS NULL))
+	`, req.UserId, req.ProductId, req.VarianId, req.SizeId).Scan(&existingCartID, &existingQty)
+
+	if err != nil && err != pgx.ErrNoRows {
+		return nil, fmt.Errorf("failed to check existing cart: %w", err)
+	}
+
+	if err == nil {
+		newQty := existingQty + req.Qty
+		newSubtotal := basePrice * float64(newQty)
+
+		_, err = Pg.Exec(c, `
+			UPDATE carts 
+			SET qty = $1, subtotal = $2, product_name = $3
+			WHERE id = $4
+		`, newQty, newSubtotal, productName, existingCartID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update cart: %w", err)
+		}
+
+		return &CartItem{
+			ID:          existingCartID,
+			UserId:      req.UserId,
+			ProductId:   req.ProductId,
+			VarianId:    &req.VarianId,
+			SizeId:      &req.SizeId,
+			Qty:         newQty,
+			Subtotal:    newSubtotal,
+			ProductName: productName,
+		}, nil
+	}
+
+	var cartID int64
+	err = Pg.QueryRow(c, `
+		INSERT INTO carts (user_id, product_id, varian_id, size_id, qty, subtotal, product_name)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id
+	`, req.UserId, req.ProductId, req.VarianId, req.SizeId, req.Qty, subtotal, productName).Scan(&cartID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add to cart: %w", err)
+	}
+
+	return &CartItem{
+		ID:          cartID,
+		UserId:      req.UserId,
+		ProductId:   req.ProductId,
+		VarianId:    &req.VarianId,
+		SizeId:      &req.SizeId,
+		Qty:         req.Qty,
+		Subtotal:    subtotal,
+		ProductName: productName,
+	}, nil
+}
+
+func (r *Product) GetCartByUserID(c context.Context, userID int) ([]CartItem, error) {
+	query := `
+		SELECT 
+			c.id,
+			c.user_id,
+			c.product_id,
+			c.varian_id,
+			c.size_id,
+			c.qty,
+			c.subtotal,
+			c.product_name,
+			v.name as variant_name,
+			s.name as size_name
+		FROM carts c
+		LEFT JOIN variants v ON c.varian_id = v.id
+		LEFT JOIN sizes s ON c.size_id = s.id
+		WHERE c.user_id = $1
+		ORDER BY c.id DESC`
+
+	rows, err := Pg.Query(c, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart: %w", err)
+	}
 	defer rows.Close()
 
+	var cartItems []CartItem
 	for rows.Next() {
-		rsp := ProductCart{}
+		var item CartItem
+		var variantName, sizeName *string
+
 		err := rows.Scan(
-			&rsp.Id,
-			&rsp.Title,
-			&rsp.Image,
-			&rsp.Size,
-			&rsp.Variants,
+			&item.ID,
+			&item.UserId,
+			&item.ProductId,
+			&item.VarianId,
+			&item.SizeId,
+			&item.Qty,
+			&item.Subtotal,
+			&item.ProductName,
+			&variantName,
+			&sizeName,
 		)
 		if err != nil {
-			return nil, fmt.Errorf("scan error %w", err)
+			return nil, fmt.Errorf("failed to scan cart item: %w", err)
 		}
-		ress = append(ress, rsp)
+		cartItems = append(cartItems, item)
 	}
-	return ress, nil
+
+	return cartItems, nil
 }
 
-type OrderRessponse struct {
-	Products []ProductCart `json:"products"`
-	SubTotal float64       `json:"sub_total"`
-}
+func (r *Product) UpdateCartItem(c context.Context, cartID int, qty int) error {
+	var productID int
+	var currentSubtotal float64
+	var currentQty int
 
-func (p *Product) GetListCart(c context.Context, id int) (OrderRessponse, error) {
-	rows, err := Pg.Query(c, `
-	SELECT 
-		p.id AS product_id,
-		p.title,
-		p.base_price,
-		s.name AS size_name,
-		v.name AS variant_name,
-		op.qty,
-		(p.base_price + s.additional_price) * op.qty AS sub_total,
-		COALESCE(ARRAY_AGG(DISTINCT pi.image) FILTER (WHERE pi.image IS NOT NULL), '{}') AS images
-	FROM orders_products op
-	LEFT JOIN products p ON p.id = op.product_id
-	LEFT JOIN sizes s ON s.id = op.size_id
-	LEFT JOIN variants v ON v.id = op.varian_id
-	LEFT JOIN products_images pi ON pi.product_id = p.id
-	LEFT JOIN orders o ON o.id = op.order_id
-	WHERE o.user_id = $1
-	GROUP BY p.id, s.id, v.id, op.qty;
-	`, id)
-
+	err := Pg.QueryRow(c,
+		"SELECT product_id, subtotal, qty FROM carts WHERE id = $1",
+		cartID,
+	).Scan(&productID, &currentSubtotal, &currentQty)
 	if err != nil {
-		return OrderRessponse{}, fmt.Errorf("error binding query %w", err)
+		return fmt.Errorf("cart item not found: %w", err)
 	}
 
-	defer rows.Close()
-	prod := []ProductCart{}
-
-	var subTotal float64
-	for rows.Next() {
-		var (
-			id     int
-			title  string
-			image  string
-			qty    float64
-			size   string
-			varian string
-			price  float64
-		)
-
-		if err := rows.Scan(&id, &title, &size, &varian, &qty, &price, &image); err != nil {
-			return OrderRessponse{}, fmt.Errorf("error scan : %w", err)
-		}
-
-		subTotal += price
-		prod = append(prod, ProductCart{
-			Id:       id,
-			Image:    image,
-			Title:    title,
-			Qty:      int(qty),
-			Size:     size,
-			Variants: varian,
-			Price:    price,
-		})
+	var basePrice float64
+	err = Pg.QueryRow(c,
+		"SELECT base_price FROM products WHERE id = $1",
+		productID,
+	).Scan(&basePrice)
+	if err != nil {
+		return fmt.Errorf("product not found: %w", err)
 	}
-	return OrderRessponse{
-		Products: prod,
-		SubTotal: subTotal,
-	}, nil
+
+	newSubtotal := basePrice * float64(qty)
+
+	_, err = Pg.Exec(c, `
+		UPDATE carts 
+		SET qty = $1, subtotal = $2 
+		WHERE id = $3`,
+		qty, newSubtotal, cartID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update cart item: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Product) DeleteCartItem(c context.Context, cartID int) error {
+	_, err := Pg.Exec(c, "DELETE FROM carts WHERE id = $1", cartID)
+	if err != nil {
+		return fmt.Errorf("failed to delete cart item: %w", err)
+	}
+	return nil
+}
+
+func (r *Product) ClearUserCart(c context.Context, userID int) error {
+	_, err := Pg.Exec(c, "DELETE FROM carts WHERE user_id = $1", userID)
+	if err != nil {
+		return fmt.Errorf("failed to clear user cart: %w", err)
+	}
+	return nil
+}
+
+func (r *Product) GetCartItemByID(c context.Context, cartID int) (*CartItem, error) {
+	var item CartItem
+
+	err := Pg.QueryRow(c, `
+		SELECT 
+			id, user_id, product_id, varian_id, size_id, qty, subtotal, product_name
+		FROM carts 
+		WHERE id = $1`,
+		cartID,
+	).Scan(
+		&item.ID,
+		&item.UserId,
+		&item.ProductId,
+		&item.VarianId,
+		&item.SizeId,
+		&item.Qty,
+		&item.Subtotal,
+		&item.ProductName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cart item: %w", err)
+	}
+
+	return &item, nil
 }
