@@ -10,11 +10,11 @@ import (
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
 
-type TransactionControoller struct {
+type TransactionController struct {
 	Transaction models.Transactions
 }
 
-func (tc TransactionControoller) CreateTransactions(c *gin.Context) {
+func (tc TransactionController) CreateTransactions(c *gin.Context) {
 	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
@@ -40,7 +40,7 @@ func (tc TransactionControoller) CreateTransactions(c *gin.Context) {
 	})
 }
 
-func (h *TransactionControoller) GetHistory(c *gin.Context) {
+func (h *TransactionController) GetHistory(c *gin.Context) {
 	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
@@ -90,4 +90,26 @@ func (h *TransactionControoller) GetHistory(c *gin.Context) {
 		Message: "Get history successfully",
 		Result:  res,
 	})
+}
+
+func (tc *TransactionController) GetHistoryByInvoice(c *gin.Context) {
+	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+		return
+	}
+	uid := int((*claim)["id"].(float64))
+	invoice := c.Param("invoice")
+	ress, err := tc.Transaction.GetHistoryByInvoiceID(c.Request.Context(), invoice, uid)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal Server Error", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Get History by invoice successfully",
+		Result:  ress,
+	})
+
 }

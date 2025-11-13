@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -178,4 +179,103 @@ func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_
 		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 	return ress, nil
+}
+
+type TransactionHistory struct {
+	Invoice         string       `json:"invoice"`
+	CustomerName    string       `json:"cust_name"`
+	CustomerPhone   string       `json:"cust_phone"`
+	CustomerEmail   string       `json:"cust_email"`
+	CustomerAddress string       `json:"cust_address"`
+	PaymentMethod   string       `json:"payment_method"`
+	DeliveryMethod  string       `json:"delivery_method"`
+	Status          string       `json:"status"`
+	Total           float64      `json:"total"`
+	Items           []OrderItem  `json:"items"`
+	CreatedAt       time.Time    `json:"created_at"`
+	UpdatedAt       sql.NullTime `json:"updated_at"`
+}
+
+type OrderItem struct {
+	ProductName string  `json:"product_name"`
+	Quantity    int     `json:"quantity"`
+	Subtotal    float64 `json:"subtotal"`
+	Size        string  `json:"size"`
+	Variant     string  `json:"variant"`
+}
+
+func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, ID int) (*TransactionHistory, error) {
+	query := `
+		SELECT 
+			o.invoice,
+			o.fullname as cust_name,
+			o.phone as cust_phone,
+			o.email as cust_email,
+			o.address as cust_address,
+			pm.name as payment_method,
+			d.name as delivery_method,
+			s.name as status,
+			o.total_order as total,
+			JSON_AGG(
+				JSON_BUILD_OBJECT(
+					'product_name', op.name,
+					'quantity', op.qty,
+					'subtotal', op.subtotal,
+					'size', COALESCE(sz.name, ''),
+					'variant', COALESCE(v.name, '')
+				)
+			) as items,
+			o.created_at,
+			o.updated_at
+		FROM orders o
+		LEFT JOIN payment_methods pm ON o.payment_method_id = pm.id
+		LEFT JOIN deliveries d ON o.delivery_id = d.id
+		LEFT JOIN status s ON o.status_id = s.id
+		LEFT JOIN orders_products op ON o.invoice = op.invoice
+		LEFT JOIN sizes sz ON op.size_id = sz.id
+		LEFT JOIN variants v ON op.varian_id = v.id
+		WHERE o.invoice = $1 AND o.user_id = $2
+		GROUP BY 
+			o.invoice, 
+			o.fullname, 
+			o.phone, 
+			o.email, 
+			o.address, 
+			pm.name, 
+			d.name, 
+			s.name, 
+			o.total_order,
+			o.created_at,
+			o.updated_at`
+
+	var th TransactionHistory
+	var itemsJSON []byte
+	var updatedAt sql.NullTime
+
+	err := Pg.QueryRow(c, query, invoice, ID).Scan(
+		&th.Invoice,
+		&th.CustomerName,
+		&th.CustomerPhone,
+		&th.CustomerEmail,
+		&th.CustomerAddress,
+		&th.PaymentMethod,
+		&th.DeliveryMethod,
+		&th.Status,
+		&th.Total,
+		&itemsJSON,
+		&th.CreatedAt,
+		&updatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var items []OrderItem
+	if err := json.Unmarshal(itemsJSON, &items); err != nil {
+		return nil, err
+	}
+	th.Items = items
+	th.UpdatedAt = updatedAt
+
+	return &th, nil
 }

@@ -1,0 +1,35 @@
+@BASE_URL=http://localhost:8085
+
+
+###=========================================###
+###             AUTHENTICATION              ###
+###=========================================###
+
+### REGISTER
+POST {{BASE_URL}}/auth/register
+Content-Type: application/json
+
+{
+    "fullname": "User",
+    "email": "user1@fore.com",
+    "password": "12345678",
+    "role": "user"
+}
+
+
+### LOGIN ADMIN
+POST {{BASE_URL}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "admin@fore.com",
+    "password": "12345678"
+}
+### LOGIN USER
+POST {{BASE_URL}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "sidik@wisnu.com",
+    "password": "12345678"
+}
