@@ -1,6 +1,8 @@
 package routers
 
 import (
+	"os"
+
 	"github.com/gin-gonic/gin"
 	_ "github.com/siddiq24/backend-coffee-shop/docs"
 	"github.com/siddiq24/backend-coffee-shop/middlewares"
@@ -9,11 +11,14 @@ import (
 )
 
 func InitRouter() *gin.Engine {
-	gin.SetMode(gin.ReleaseMode)
-	r := gin.New()
-	r.Use(gin.Recovery())
+	r := gin.Default()
+	if os.Getenv("ENVIRONMENT") == "production" {
+		gin.SetMode(gin.ReleaseMode)
+		r.Use(gin.Recovery())
+	}
 	r.Use(middlewares.Cors())
 
+	InitWelcomeRouter(r)
 	AuthRouter(r)
 	PromoRouter(r)
 	ProductRouter(r)
