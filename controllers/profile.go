@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -29,23 +30,17 @@ func UpdateProfile(c *gin.Context) {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid token", err.Error())
 		return
 	}
-	file, header, err := c.Request.FormFile("image")
-	if err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "gagal ambil gambar", err.Error())
-		return
-	}
-	imege, err := libs.SaveUploadedFile(c, file, header, c.PostForm("fullname"))
-	if err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "gagal save file", err.Error())
-		return
-	}
+
 	req := models.Profile{
-		UserId:   int((*claim)["id"].(float64)),
 		Fullname: c.PostForm("fullname"),
-		Image:    imege,
-		Phone:    c.PostForm("phone"),
-		Address:  c.PostForm("address"),
+		Phone:    sql.NullString{String: c.PostForm("phone")},
+		Address:  sql.NullString{String: c.PostForm("address")},
 	}
+	if req == (models.Profile{}) {
+		c.ShouldBind(&req)
+	}
+
+	req.UserId = int((*claim)["id"].(float64))
 
 	profile, err := models.EditProfile(c.Request.Context(), req)
 	if err != nil {
@@ -59,4 +54,78 @@ func UpdateProfile(c *gin.Context) {
 		Result:  profile,
 	})
 
+}
+
+func UpdateProfileImage(c *gin.Context) {
+	token := c.GetHeader("Authorization")
+	claim, err := libs.VerifyJwt(token[7:])
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid token", err.Error())
+		return
+	}
+
+	file, err := c.FormFile("image")
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "gagal ambil gambar", err.Error())
+		return
+	}
+
+	uid := int((*claim)["id"].(float64))
+
+	// Simpan file ke lokal
+	savedFilePath, err := libs.SaveUploadedFile(c, file, "images/user")
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "gagal save file lokal", err.Error())
+		return
+	}
+
+	// Upload ke cloudinary
+	avatarUrl, err := libs.UploadToCloudinary(savedFilePath)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "gagal upload ke cloudinary", err.Error())
+		return
+	}
+
+	// Update database
+	_, err = models.UpdateImage(c, uid, avatarUrl)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "gagal update database", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Update image successfully",
+		Result:  avatarUrl,
+	})
+}
+
+func GetProfileInfo(c *gin.Context) {
+	token := c.Request.Header.Get("Authorization")
+	claim, err := libs.VerifyJwt(string(token[7:]))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid token", err.Error())
+		return
+	}
+
+	id := int((*claim)["id"].(float64))
+
+	p, err := models.GetProfileInfo(c, id)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "gagal mendapatkan detail profile", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusCreated, models.JSON_Response{
+		Success: true,
+		Message: "Berhasil mendapatkan detail profile",
+		Result: gin.H{
+			"user_id":  p.UserId,
+			"fullname": p.Fullname,
+			"image":    p.Image.String,
+			"phone":    p.Phone.String,
+			"email":    p.Email,
+			"address":  p.Address.String,
+		},
+	})
 }
