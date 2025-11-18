@@ -1,10 +1,12 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siddiq24/backend-coffee-shop/libs"
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
 
@@ -31,6 +33,8 @@ func (a AdminController) GetAllProducts(c *gin.Context) {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid query parameters", err.Error())
 		return
 	}
+
+	fmt.Println(req)
 
 	products, err := a.Admin.GetAllProducts(c, req.Page, req.Search)
 	if err != nil {
@@ -544,13 +548,34 @@ func (a AdminController) AddProductImage(c *gin.Context) {
 		return
 	}
 
-	var req models.ProductImageDTO
-	if err := c.ShouldBindJSON(&req); err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+	// Ambil file dari form-data
+	file, err := c.FormFile("image")
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Gagal mengambil file", err.Error())
 		return
 	}
 
-	req.ProductId = productId
+	// Simpan file ke folder lokal
+	savedPath, err := libs.SaveUploadedFile(c, file, "images/products")
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Gagal menyimpan file lokal", err.Error())
+		return
+	}
+
+	// Upload ke cloudinary
+	imageURL, err := libs.UploadToCloudinary(savedPath)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal upload ke Cloudinary", err.Error())
+		return
+	}
+
+	// Data untuk ke service
+	req := models.ProductImageDTO{
+		ProductId: productId,
+		Image:     imageURL,
+	}
+
+	// Simpan ke database
 	err = a.Admin.AddProductImage(c.Request.Context(), req)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal menambahkan image", err.Error())
@@ -560,6 +585,7 @@ func (a AdminController) AddProductImage(c *gin.Context) {
 	c.JSON(http.StatusCreated, models.JSON_Response{
 		Success: true,
 		Message: "Berhasil menambahkan image",
+		Result:  imageURL,
 	})
 }
 
@@ -576,35 +602,55 @@ func (a AdminController) AddProductImage(c *gin.Context) {
 // @Success 200 {object} models.JSON_Response
 // @Router /admin/products/{product_id}/images/{image_id} [patch]
 func (a AdminController) UpdateProductImage(c *gin.Context) {
-	productId, err := strconv.Atoi(c.Param("id"))
+	productId, err := strconv.Atoi(c.Param("productId"))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err.Error())
 		return
 	}
 
-	imageId, err := strconv.Atoi(c.Param("image_id"))
+	imageId, err := strconv.Atoi(c.Param("imageId"))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid image ID", err.Error())
 		return
 	}
 
-	var req models.ProductImageDTO
-	if err := c.ShouldBindJSON(&req); err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+	// Ambil file upload baru
+	file, err := c.FormFile("image")
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Gagal mengambil file", err.Error())
 		return
 	}
 
-	req.ProductId = productId
-	req.Id = imageId
+	// Simpan file ke lokal
+	savedPath, err := libs.SaveUploadedFile(c, file, "images/products")
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Gagal menyimpan file lokal", err.Error())
+		return
+	}
+
+	// Upload ke cloudinary
+	imageURL, err := libs.UploadToCloudinary(savedPath)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal upload ke Cloudinary", err.Error())
+		return
+	}
+
+	req := models.ProductImageDTO{
+		Id:        imageId,
+		ProductId: productId,
+		Image:     imageURL,
+	}
+
 	err = a.Admin.UpdateProductImage(c.Request.Context(), req)
 	if err != nil {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal mengupdate image", err.Error())
+		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal update image", err.Error())
 		return
 	}
 
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
-		Message: "Berhasil mengupdate image",
+		Message: "Update image berhasil",
+		Result:  imageURL,
 	})
 }
 
@@ -620,13 +666,13 @@ func (a AdminController) UpdateProductImage(c *gin.Context) {
 // @Success 200 {object} models.JSON_Response
 // @Router /admin/products/{product_id}/images/{image_id} [delete]
 func (a AdminController) DeleteProductImage(c *gin.Context) {
-	productId, err := strconv.Atoi(c.Param("id"))
+	productId, err := strconv.Atoi(c.Param("productId"))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err.Error())
 		return
 	}
 
-	imageId, err := strconv.Atoi(c.Param("image_id"))
+	imageId, err := strconv.Atoi(c.Param("imageId"))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid image ID", err.Error())
 		return
