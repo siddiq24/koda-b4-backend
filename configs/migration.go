@@ -1,25 +1,17 @@
 package configs
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
 )
 
 func MigrationsUp() {
-	env := GetEnv()
 	cmd := exec.Command(
 		"migrate",
 		"-path", "migrations/up",
 		"-database",
-		fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
-			env.POSTGRES_USER,
-			env.POSTGRES_PASSWORD,
-			env.POSTGRES_HOST,
-			env.POSTGRES_PORT,
-			env.POSTGRES_NAME,
-		),
+		os.Getenv("PSQL_URL"),
 		"up",
 	)
 	cmd.Stdout = os.Stdout
