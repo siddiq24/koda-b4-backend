@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siddiq24/backend-coffee-shop/configs"
 	"github.com/siddiq24/backend-coffee-shop/libs"
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
@@ -54,13 +55,16 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 	var results []models.Product_ress
 
 	if len(c.Request.URL.Query()) == 0 {
-		value, err = models.Rdb.Get(c.Request.Context(), "users").Result()
+		value, err = configs.GetRedis().Get(c, "products:page1").Result()
 		fmt.Println("get redis")
 	}
+	totalPages := 0
 
 	// jika redis kosong, ambil dari postgres
 	if value == "" || err != nil {
-		products, err := pc.Product.AllProductFiltered(c, prm)
+		products := []models.Product_ress{}
+		fmt.Println("redis kosong")
+		products, totalPages, err = pc.Product.AllProductFiltered(c, prm)
 		if err != nil {
 			models.ErrorResponse(c, http.StatusInternalServerError, "failed to get products", err.Error())
 			return
@@ -69,7 +73,7 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 			prod, _ := json.Marshal(products)
 			fmt.Println("set redis")
 
-			if err := models.Rdb.Set(c.Request.Context(), "users", prod, (time.Duration(15) * time.Second)).Err(); err != nil {
+			if err := configs.GetRedis().Set(c, "products:page1", prod, (time.Duration(15) * time.Second)).Err(); err != nil {
 				models.ErrorResponse(c, http.StatusBadRequest, "Gagal Set products ke redis", err.Error())
 				return
 			}
@@ -82,18 +86,35 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 		}
 	}
 
-	c.JSON(200, models.JSON_Response{
-		Success: true,
-		Message: "success get products",
-		Result:  results,
+	fmt.Println(c.Request.URL.String())
+	prev := ""
+	next := ""
+
+	if page > 1 {
+		prev = libs.BuildPageURL(c, page-1)
+	}
+
+	if page < totalPages {
+		next = libs.BuildPageURL(c, page+1)
+	}
+	fmt.Println(prev)
+	fmt.Println(next)
+
+	c.JSON(200, models.ProductsRessponse{
+		Success:    true,
+		Message:    "success get products",
+		Page:       page,
+		NextPage:   next,
+		PrevPage:   prev,
+		TotalPages: totalPages,
+		Result:     results,
 	})
 }
 
 func (pc *ProductsController) GetAllFavProducts(c *gin.Context) {
-	limit, err := strconv.Atoi(c.Query("limit"))
-	if err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "Invalid Query", err.Error())
-		return
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit == 0 {
+		limit = 10
 	}
 
 	results, err := pc.Product.FavProducts(c, limit)
@@ -116,9 +137,13 @@ func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 		return
 	}
 	limit, err := strconv.Atoi(c.Query("limit"))
-	if err != nil {
+	if err != nil && limit != 0 {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
 		return
+	}
+
+	if limit == 0 {
+		limit = 10
 	}
 
 	ress, err := pc.Product.GetRecommendation(c.Request.Context(), id, limit)
@@ -164,8 +189,13 @@ func (pc *ProductsController) GetProductCart(c *gin.Context) {
 	if err != nil {
 		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
 	}
-	id := int((*claim)["id"].(float64))
-	ress, err := pc.Product.GetCartItemByID(c.Request.Context(), id)
+	uid := int((*claim)["id"].(float64))
+	pid, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
+		return
+	}
+	ress, err := pc.Product.GetCartItemByID(c.Request.Context(), uid, pid)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
 		return
