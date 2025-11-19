@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5"
@@ -20,6 +21,16 @@ type Product_Params struct {
 	Limit      int      `form:"limit"`
 }
 
+type ProductsRessponse struct {
+	Success    bool   `json:"success"`
+	Message    string `json:"message"`
+	Page       int    `json:"page"`
+	NextPage   string `json:"next_page"`
+	PrevPage   string `json:"prev_page"`
+	TotalPages int    `json:"total_page"`
+	Result     any    `json:"result,omitempty"`
+}
+
 type Product_ress struct {
 	Id        int             `json:"id"`
 	Title     string          `json:"title"`
@@ -34,9 +45,8 @@ type Product_ress struct {
 
 type Product struct{}
 
-func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]Product_ress, error) {
+func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]Product_ress, int, error) {
 	var products []Product_ress
-
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
 
 	sortDir := "DESC"
@@ -99,14 +109,43 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 	offset := (prm.Page - 1) * prm.Limit
 	query = query.Limit(uint64(prm.Limit)).Offset(uint64(offset))
 
+	countQuery := psql.
+		Select("COUNT(DISTINCT p.id)").
+		From("products p").
+		LeftJoin("categories c ON c.id = p.category_id")
+
+	if prm.Search != "" {
+		search := "%" + prm.Search + "%"
+		countQuery = countQuery.Where(sq.Or{
+			sq.ILike{"p.title": search},
+			sq.ILike{"p.description": search},
+		})
+	}
+	if len(prm.CategoryId) > 0 {
+		countQuery = countQuery.Where(sq.Eq{"p.category_id": prm.CategoryId})
+	}
+	if prm.MinPrice > 0 {
+		countQuery = countQuery.Where(sq.GtOrEq{"p.base_price": prm.MinPrice})
+	}
+	if prm.MaxPrice > 0 {
+		countQuery = countQuery.Where(sq.LtOrEq{"p.base_price": prm.MaxPrice})
+	}
+
+	countSQL, countArgs, _ := countQuery.ToSql()
+
+	var totalRows int
+	if err := Pg.QueryRow(c, countSQL, countArgs...).Scan(&totalRows); err != nil {
+		return nil, 0, fmt.Errorf("count error: %w", err)
+	}
+
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("failed to build SQL: %w", err)
+		return nil, 0, fmt.Errorf("failed to build SQL: %w", err)
 	}
 
 	rows, err := Pg.Query(c, sqlStr, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query error: %w", err)
+		return nil, 0, fmt.Errorf("query error: %w", err)
 	}
 	defer rows.Close()
 
@@ -124,7 +163,7 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 			&images,
 			&sizes,
 		); err != nil {
-			return nil, fmt.Errorf("scan error: %w", err)
+			return nil, 0, fmt.Errorf("scan error: %w", err)
 		}
 
 		pr.Images = images
@@ -132,7 +171,9 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 		products = append(products, pr)
 	}
 
-	return products, nil
+	totalPages := int(math.Ceil(float64(totalRows) / float64(prm.Limit)))
+
+	return products, totalPages, nil
 }
 
 func (p *Product) FavProducts(c context.Context, limit int) ([]Product_ress, error) {
@@ -220,7 +261,7 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 		JoinClause("FULL JOIN products_tags pt ON pt.product_id = p1.id").
 		JoinClause("FULL JOIN products_tags pt2 ON pt2.tag_id = pt.tag_id").
 		JoinClause("FULL JOIN orders_products op ON op.product_id = p1.id").
-		JoinClause("FULL JOIN orders_products op2 ON op2.order_id = op.order_id").
+		JoinClause("FULL JOIN orders_products op2 ON op2.invoice = op.invoice").
 		JoinClause("FULL JOIN products p2 ON p2.id = pt2.product_id OR p2.id = op2.product_id OR p2.category_id = p1.category_id").
 		LeftJoin("categories c ON c.id = p2.category_id").
 		LeftJoin("products_images i ON i.product_id = p2.id").
@@ -369,6 +410,7 @@ func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, erro
 }
 
 func (r *Product) GetCartByUserID(c context.Context, userID int) ([]CartItem, error) {
+	fmt.Println("user id", userID)
 	query := `
 		SELECT 
 			c.id,
@@ -472,15 +514,15 @@ func (r *Product) ClearUserCart(c context.Context, userID int) error {
 	return nil
 }
 
-func (r *Product) GetCartItemByID(c context.Context, cartID int) (*CartItem, error) {
+func (r *Product) GetCartItemByID(c context.Context, userID, cartID int) (*CartItem, error) {
 	var item CartItem
 
 	err := Pg.QueryRow(c, `
 		SELECT 
 			id, user_id, product_id, varian_id, size_id, qty, subtotal, product_name
 		FROM carts 
-		WHERE id = $1`,
-		cartID,
+		WHERE id = $1 AND user_id = $2`,
+		cartID, userID,
 	).Scan(
 		&item.ID,
 		&item.UserId,

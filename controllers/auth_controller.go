@@ -3,6 +3,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/siddiq24/backend-coffee-shop/libs"
@@ -46,7 +47,7 @@ func (a *AuthController) Register(c *gin.Context) {
 	if request.Role == "" {
 		request.Role = "user"
 	}
-	request.Password = libs.Create_Hash(request.Password)
+	request.Password = libs.Generate_Hash(request.Password)
 
 	if a.Auth.EmailExist(c, request.Email) > 0 {
 		models.ErrorResponse(c, http.StatusConflict, "Silahkan login atau gunakan email lain", "Email telah terdaftar")
@@ -80,29 +81,166 @@ func (a *AuthController) Register(c *gin.Context) {
 func (a *AuthController) Login(c *gin.Context) {
 	var req models.AuthRequest
 	req.Fullname = "-"
+
 	if err := c.ShouldBind(&req); err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Bad Request", err.Error())
 		return
 	}
 
-	if req.Email == "" && req.Password == "" {
-		req = models.AuthRequest{
-			Email:    c.PostForm("email"),
-			Password: c.PostForm("password"),
-		}
+	if req.Email == "" {
+		req.Email = c.PostForm("email")
+	}
+	if req.Password == "" {
+		req.Password = c.PostForm("password")
 	}
 
-	id, pass, role := a.Auth.PasswordIDUser(c, req.Email)
-	token, _ := libs.GenerateJwt(id, role)
-	if libs.Verify_Hash(req.Password, pass) {
-		c.JSON(http.StatusCreated, models.JSON_Response{
-			Success: true,
-			Message: "Login successfully",
-			Token:   token,
-			Result:  req,
-		})
+	if req.Email == "" || req.Password == "" {
+		models.ErrorResponse(c, http.StatusBadRequest, "Email and password are required", "")
 		return
 	}
 
-	models.ErrorResponse(c, http.StatusBadRequest, "Password wrong", "")
+	id, pass, role, err := a.Auth.PasswordIDUser(c, req.Email)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", err)
+		return
+	}
+
+	fmt.Println(req.Password, pass)
+
+	if !libs.Verify_Hash(req.Password, pass) {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password", "failed hasing")
+		return
+	}
+
+	token, err := libs.GenerateJwt(id, role)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Failed to generate token", err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Login successfully",
+		Token:   token,
+		Result: gin.H{
+			"id":    id,
+			"email": req.Email,
+			"role":  role,
+		},
+	})
+	token = ""
+}
+
+func (a *AuthController) ForgotPassword(c *gin.Context) {
+	var req models.ForgotPassword
+	if err := c.ShouldBind(&req); err != nil || req.Email == "" {
+		models.ErrorResponse(c, http.StatusBadRequest, "Bad request", err)
+		return
+	}
+	pin, err := a.Auth.ForgotPassword(c.Request.Context(), req.Email)
+	if err != nil && pin != "" {
+		models.ErrorResponse(c, http.StatusTooManyRequests, "Too many request", err)
+		return
+	}
+
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
+
+	if a.Auth.EmailExist(c, req.Email) == -1 {
+		models.ErrorResponse(c, http.StatusBadRequest, "Request invalid ", "email alredy exist")
+		return
+	}
+
+	err = libs.SendEmail(req.Email, "Reset Password", pin)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", err)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "PIN telah dikirim melalui email, pastikan email aktif",
+	})
+
+}
+
+func (a *AuthController) ValidatePin(c *gin.Context) {
+	var req models.ForgotPassword
+	if c.ShouldBind(&req) != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Bad request", nil)
+		return
+	}
+
+	if a.Auth.EmailExist(c, req.Email) == -1 {
+		models.ErrorResponse(c, http.StatusBadRequest, "Request invalid ", nil)
+		return
+	}
+
+	if !a.Auth.ValidatePIN(c, req.Email, req.Pin) {
+		c.JSON(http.StatusBadRequest, models.JSON_Response{
+			Success: false,
+			Message: "Invalid pin",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Your Pin is valid",
+	})
+}
+
+func (a *AuthController) SetNewPassword(c *gin.Context) {
+	var req models.ForgotPassword
+
+	if c.ShouldBind(&req) != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Bad request", c.ShouldBind(&req))
+		return
+	}
+
+	req.NewPassword = libs.Generate_Hash(req.NewPassword)
+
+	if !a.Auth.ValidatePIN(c, req.Email, req.Pin) {
+		c.JSON(http.StatusBadRequest, models.JSON_Response{
+			Success: false,
+			Message: "Invalid pin",
+		})
+		return
+	}
+	fmt.Println(req)
+
+	if a.Auth.UpdatePassword(c, req) != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Update new password successfully",
+	})
+}
+
+func (a *AuthController) Logout(c *gin.Context) {
+	token := c.Request.Header.Get("Authorization")
+	fmt.Println(token)
+	claim, err := libs.VerifyJwt(string(token[7:]))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid token", err.Error())
+		return
+	}
+
+	exp := int64((*claim)["exp"].(float64))
+
+	err = a.Auth.Logout(c, token, time.Until(time.Unix(exp, 0)))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal servis error", nil)
+		return
+	}
+
+	c.JSON(http.StatusOK, models.JSON_Response{
+		Success: true,
+		Message: "Logout successfully",
+	})
+
 }

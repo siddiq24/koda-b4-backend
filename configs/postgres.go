@@ -2,69 +2,61 @@ package configs
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
 
 var (
-	pgPool *pgxpool.Pool
+	Pg     *pgxpool.Pool
+	PgMsg  string
 	pgOnce sync.Once
 )
 
-func InitPostgres() *pgxpool.Pool {
+// InitDB inisialisasi koneksi database
+func InitDB() *pgxpool.Pool {
 	pgOnce.Do(func() {
-		if os.Getenv("VERCEL") == "" {
+		databaseURL := os.Getenv("DATABASE_URL")
+		if os.Getenv("ENVIRONMENT") == "" {
 			godotenv.Load()
+			databaseURL = os.Getenv("DATABASE_URL")
 		}
 
-		// Support both individual env vars and DATABASE_URL
-		connString := os.Getenv("PSQL_URL")
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		// Parse config untuk custom settings
-		config, err := pgxpool.ParseConfig(connString)
+		config, err := pgxpool.ParseConfig(databaseURL)
 		if err != nil {
-			log.Fatalf("❌ Failed to parse config: %s", err)
+			PgMsg = fmt.Sprintf("❌ Unable to parse DATABASE_URL: %v\n", err)
+			return
 		}
 
-		// Optimized untuk serverless (Vercel)
-		// Untuk local development, bisa diubah via env var
-		maxConns := 1
-		if os.Getenv("ENVIRONMENT") == "development" {
-			maxConns = 10
-		}
+		// Konfigurasi pool connection
+		config.MaxConns = 10
+		config.MinConns = 2
 
-		config.MaxConns = int32(maxConns)
-		config.MinConns = 0
-		config.MaxConnIdleTime = 30 * time.Second
-		config.MaxConnLifetime = 0
-
-		pgPool, err = pgxpool.NewWithConfig(context.Background(), config)
+		pool, err := pgxpool.NewWithConfig(context.Background(), config)
 		if err != nil {
-			log.Fatalf("❌ Failed to create pool: %s", err)
+			PgMsg = fmt.Sprintf("❌ Unable to create connection pool: %v\n", err)
+			return
 		}
 
-		if err := pgPool.Ping(ctx); err != nil {
-			log.Fatalf("❌ Failed to ping database: %s", err)
+		// Test koneksi
+		if err := pool.Ping(context.Background()); err != nil {
+			PgMsg = fmt.Sprintf("❌ Unable to ping database: %v\n", err)
+			return
 		}
 
-		log.Println("✅ Connected to Postgres successfully")
+		Pg = pool
+		PgMsg = "✅ Database connected successfully"
 	})
 
-	return pgPool
+	return Pg
 }
 
-// GetPool returns the singleton pool instance
-func GetPool() *pgxpool.Pool {
-	if pgPool == nil {
-		return InitPostgres()
+func GetDB() *pgxpool.Pool {
+	if Pg == nil {
+		return InitDB()
 	}
-	return pgPool
+	return Pg
 }

@@ -2,7 +2,7 @@
     "version": 2,
     "builds": [
         {
-            "src": "main.go",
+            "src": "api/index.go",
             "use": "@vercel/go"
         }
     ],
@@ -11,9 +11,5 @@
             "src": "/(.*)",
             "dest": "/api/index.go"
         }
-    ],
-    "env": {
-        "GO111MODULE": "on",
-        "ENVIRONMENT": "production"
-    }
+    ]
 }

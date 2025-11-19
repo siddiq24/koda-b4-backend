@@ -35,7 +35,7 @@ type OrderController struct {
 // @Failure			409  {object}  models.JSON_Response
 // @Router			/order [post]
 func (oc *OrderController) CreateOrder(c *gin.Context) {
-	var req models.Order_Request
+	var req []models.ProductOrder
 	token := c.Request.Header.Get("Authorization")
 	fmt.Println(token)
 	claim, err := libs.VerifyJwt(string(token[7:]))
@@ -49,9 +49,10 @@ func (oc *OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	req.UserId = int((*claim)["id"].(float64))
+	UserId := int((*claim)["id"].(float64))
 
-	if err := oc.Order.CreateOrder(c, req); err != nil {
+	info, err := oc.Order.CreateOrder(c, UserId, req)
+	if err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Gagal Membuat Order", err.Error())
 		return
 	}
@@ -59,5 +60,6 @@ func (oc *OrderController) CreateOrder(c *gin.Context) {
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
 		Message: "Create Order Successfully",
+		Result:  info,
 	})
 }

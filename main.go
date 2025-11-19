@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/siddiq24/backend-coffee-shop/configs"
 	_ "github.com/siddiq24/backend-coffee-shop/docs"
 	"github.com/siddiq24/backend-coffee-shop/routers"
 )
@@ -24,10 +26,12 @@ import (
 // @tag.description User management endpoints (CRUD operations)
 // @BasePath  /
 func main() {
-	if os.Getenv("VERCEL") == "" {
-		godotenv.Load()
-	}
-	r := routers.InitRouter()
+	godotenv.Load()
+	configs.InitDB()
+	configs.InitRedis()
+
+	r := gin.Default()
+	routers.InitRouter(r)
 
 	port := os.Getenv("PORT")
 	r.Run(fmt.Sprintf(":%s", port))

@@ -3,22 +3,30 @@ package handler
 import (
 	"net/http"
 
-	"github.com/siddiq24/backend-coffee-shop/models"
+	"github.com/gin-gonic/gin"
+	"github.com/siddiq24/backend-coffee-shop/configs"
 	"github.com/siddiq24/backend-coffee-shop/routers"
 )
 
-var router http.Handler
+func SetupRouter() *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
 
-func init() {
-	// Initialize connections (sudah ada singleton di models)
-	_ = models.Pg
-	_ = models.Rdb
+	r := gin.New()
+	r.Use(gin.Recovery())
 
-	// Initialize router
-	r := routers.InitRouter()
-	router = r
+	routers.InitRouter(r)
+
+	return r
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
+	// Inisialisasi database
+	configs.InitDB()
+	configs.InitRedis()
+
+	// Setup router
+	router := SetupRouter()
+
+	// Serve request
 	router.ServeHTTP(w, r)
 }

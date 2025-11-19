@@ -2,7 +2,7 @@ package configs
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"sync"
 
@@ -11,44 +11,42 @@ import (
 )
 
 var (
-	redisClient *redis.Client
-	redisOnce   sync.Once
+	Rdb       *redis.Client
+	RdbMsg    string
+	redisOnce sync.Once
 )
 
-func Redis() *redis.Client {
+func InitRedis() *redis.Client {
 	redisOnce.Do(func() {
-		if os.Getenv("VERCEL") == "" {
-			godotenv.Load()
-		}
-
 		redisURL := os.Getenv("REDIS_URL")
-		if redisURL == "" {
-			log.Fatal("❌ REDIS_URL not found in environment variables")
+		if os.Getenv("ENVIRONMENT") == "" {
+			godotenv.Load()
+			redisURL = os.Getenv("REDIS_URL")
 		}
 
-		// ✅ Gunakan redis.ParseURL agar format rediss:// bisa dibaca
 		opt, err := redis.ParseURL(redisURL)
 		if err != nil {
-			log.Fatalf("❌ Failed to parse Redis URL: %v", err)
+			RdbMsg = fmt.Sprintf("❌ Failed to parse Redis URL: %v", err)
+			return
 		}
 
-		redisClient = redis.NewClient(opt)
+		Rdb = redis.NewClient(opt)
 
 		ctx := context.Background()
-		if err := redisClient.Ping(ctx).Err(); err != nil {
-			log.Fatalf("❌ Failed to connect to Redis: %s", err)
+		if err := Rdb.Ping(ctx).Err(); err != nil {
+			RdbMsg = fmt.Sprintf("❌ Failed to connect to Redis: %s", err)
+			return
 		}
 
-		log.Println("✅ Connected to Redis successfully")
+		RdbMsg = "✅ Connected to Redis successfully"
 	})
 
-	return redisClient
+	return Rdb
 }
 
-// GetRedis returns the singleton redis client
 func GetRedis() *redis.Client {
-	if redisClient == nil {
-		return Redis()
+	if Rdb == nil {
+		return InitRedis()
 	}
-	return redisClient
+	return Rdb
 }

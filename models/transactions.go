@@ -278,7 +278,7 @@ func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, 
 		&updatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil
 	}
 
 	var items []OrderItem
