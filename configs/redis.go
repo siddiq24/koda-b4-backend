@@ -2,7 +2,7 @@ package configs
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"sync"
 
@@ -18,32 +18,27 @@ var (
 
 func InitRedis() *redis.Client {
 	redisOnce.Do(func() {
-		if os.Getenv("VERCEL") == "" {
-			godotenv.Load()
-		}
-
 		redisURL := os.Getenv("REDIS_URL")
-		if redisURL == "" {
-			RdbMsg = "❌ REDIS_URL not found in environment variables"
-			log.Fatal("❌ REDIS_URL not found in environment variables")
+		if os.Getenv("ENVIRONMENT") == "" {
+			godotenv.Load()
+			redisURL = os.Getenv("REDIS_URL")
 		}
 
 		opt, err := redis.ParseURL(redisURL)
 		if err != nil {
-			RdbMsg = "❌ Failed to parse Redis URL"
-			log.Fatalf("❌ Failed to parse Redis URL: %v", err)
+			RdbMsg = fmt.Sprintf("❌ Failed to parse Redis URL: %v", err)
+			return
 		}
 
 		Rdb = redis.NewClient(opt)
 
 		ctx := context.Background()
 		if err := Rdb.Ping(ctx).Err(); err != nil {
-			RdbMsg = "❌ Failed to connect to Redis"
-			log.Fatalf("❌ Failed to connect to Redis: %s", err)
+			RdbMsg = fmt.Sprintf("❌ Failed to connect to Redis: %s", err)
+			return
 		}
 
 		RdbMsg = "✅ Connected to Redis successfully"
-		log.Println("✅ Connected to Redis successfully")
 	})
 
 	return Rdb
