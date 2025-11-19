@@ -3,7 +3,6 @@ package controllers
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -154,18 +153,15 @@ func (a *AuthController) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	if os.Getenv("ENVIRONMEN") == "production" {
-		err = libs.SendEmail(req.Email, "Reset Password", pin)
-		if err != nil {
-			models.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", err)
-			return
-		}
+	err = libs.SendEmail(req.Email, "Reset Password", pin)
+	if err != nil {
+		models.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", err)
+		return
 	}
 
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
 		Message: "PIN telah dikirim melalui email, pastikan email aktif",
-		Result:  pin,
 	})
 
 }
