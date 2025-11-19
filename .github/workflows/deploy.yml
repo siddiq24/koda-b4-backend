@@ -63,5 +63,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /root/koda-backend
-            docker pull ghcr.io/${{ github.repository_owner }}/koda-b4-backend:latest
+            cd ~/server \
+&& docker compose pull \
+&& docker compose up -d 
+            docker system prune -a --volumes
