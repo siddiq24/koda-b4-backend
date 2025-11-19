@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/siddiq24/koda-b4-backend:latest
     container_name: backend-app
     ports:
       - "8085:8085"

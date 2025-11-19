@@ -1,0 +1,69 @@
+name: Build & Deploy
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Build Go Binary
+        run: |
+          go mod tidy
+          go build -o server .
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set Image Name
+        id: vars
+        run: echo "image=ghcr.io/${{ github.repository_owner }}/koda-b4-backend" >> $GITHUB_OUTPUT
+
+      - name: Build Docker Image
+        run: |
+          VERSION=${GITHUB_SHA::7}
+          docker build \
+            -t ${{ steps.vars.outputs.image }}:latest \
+            -t ${{ steps.vars.outputs.image }}:$VERSION .
+
+      - name: Push Docker Image
+        run: |
+          VERSION=${GITHUB_SHA::7}
+          docker push ${{ steps.vars.outputs.image }}:latest
+          docker push ${{ steps.vars.outputs.image }}:$VERSION
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /root/koda-backend
+            docker pull ghcr.io/${{ github.repository_owner }}/koda-b4-backend:latest
+            docker compose down
+            docker compose up -d
