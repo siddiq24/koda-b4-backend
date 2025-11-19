@@ -1,8 +1,6 @@
 package models
 
 import (
-	"fmt"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,28 +23,53 @@ type ProductOrder struct {
 	Total    uint64 `json:"total" form:"total"`
 }
 
+type AddCart struct {
+	Product string `json:"product"`
+	Status  string `json:"status"`
+}
+
 type Order struct{}
 
-func (o *Order) CreateOrder(c *gin.Context, req Order_Request) error {
+func (o *Order) CreateOrder(c *gin.Context, Uid int, req []ProductOrder) ([]AddCart, error) {
 
-	fmt.Println(req)
-	QueryOrder := fmt.Sprintf("INSERT INTO orders( user_id, shipping_id, no_order, status_id, promo_id, total_order) VALUES(%d,%d,'%s',%d,%d, 0) RETURNING id;",
-		req.UserId, req.ShippingId, req.NoOrder, req.StatusId, req.PromoId)
-	var orderId int
-	if err := Pg.QueryRow(c, QueryOrder).Scan(&orderId); err != nil {
-		return err
-	}
+	var ress []AddCart
+	for _, p := range req {
+		var addCart AddCart
 
-	var totalOrder uint64
-	for _, product := range req.Products {
-		if _, err := Pg.Exec(c, `INSERT INTO orders_products(order_id, product_id, size_id, varian_id, qty) VALUES ($1, $2, $3, $4, $5)`, orderId, product.Id, product.SizeId, product.VarianId, product.Qty); err != nil {
-			return err
+		var basePrice uint64
+		Pg.QueryRow(c, `
+			SELECT title, base_price
+			FROM products
+			WHERE id = $1
+		`, p.Id).Scan(&addCart.Product, &basePrice)
+
+		var sizePrice uint64
+		Pg.QueryRow(c, `
+			SELECT additional_price
+			FROM sizes
+			WHERE id = $1
+		`, p.SizeId).Scan(&sizePrice)
+
+		var variantPrice uint64
+		Pg.QueryRow(c, `
+			SELECT additional_price
+			FROM variants
+			WHERE id = $1
+		`, p.VarianId).Scan(&variantPrice)
+
+		subtot := basePrice + sizePrice + variantPrice
+
+		_, err := Pg.Exec(c, `
+			INSERT INTO carts(user_id, product_id, size_id, varian_id, qty, subtotal, product_name) VALUES
+			($1, $2, $3, $$, $5, $6, $7);
+		`, Uid, p.Id, p.SizeId, p.VarianId, p.Qty, subtot, addCart.Product)
+		if err != nil {
+			addCart.Status = "Gagal ditambahkan"
 		}
-		totalOrder += product.Total
+		addCart.Status = "Berhasil ditambahkan"
+
+		ress = append(ress, addCart)
 	}
 
-	if _, err := Pg.Exec(c, `UPDATE orders SET total_order = $1 WHERE id = $2`, totalOrder, orderId); err != nil {
-		return err
-	}
-	return nil
+	return ress, nil
 }
