@@ -63,7 +63,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd ~/server \
-&& docker compose pull \
-&& docker compose up -d 
-            docker system prune -a --volumes
+            cd ~/server
+            docker compose /home/sidik/server/docker-compose.yaml pull
+            docker compose /home/sidik/server/docker-compose.yaml up -d
+            docker system prune -af --volumes
