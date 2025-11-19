@@ -2,10 +2,9 @@ package configs
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -17,54 +16,47 @@ var (
 	pgOnce sync.Once
 )
 
-func InitPostgres() *pgxpool.Pool {
+// InitDB inisialisasi koneksi database
+func InitDB() *pgxpool.Pool {
 	pgOnce.Do(func() {
-		if os.Getenv("VERCEL") == "" {
+		databaseURL := os.Getenv("DATABASE_URL")
+		if os.Getenv("ENVIRONMENT") == "" {
 			godotenv.Load()
+			databaseURL = os.Getenv("DATABASE_URL")
 		}
 
-		connString := os.Getenv("PSQL_URL")
-
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		config, err := pgxpool.ParseConfig(connString)
+		config, err := pgxpool.ParseConfig(databaseURL)
 		if err != nil {
-			PgMsg = "❌ Failed to parse config"
-			log.Fatalf("❌ Failed to parse config: %s", err)
+			PgMsg = fmt.Sprintf("❌ Unable to parse DATABASE_URL: %v\n", err)
+			return
 		}
 
-		maxConns := 1
-		if os.Getenv("ENVIRONMENT") == "development" {
-			maxConns = 10
-		}
+		// Konfigurasi pool connection
+		config.MaxConns = 10
+		config.MinConns = 2
 
-		config.MaxConns = int32(maxConns)
-		config.MinConns = 0
-		config.MaxConnIdleTime = 30 * time.Second
-		config.MaxConnLifetime = 0
-
-		Pg, err = pgxpool.NewWithConfig(context.Background(), config)
+		pool, err := pgxpool.NewWithConfig(context.Background(), config)
 		if err != nil {
-			PgMsg = "❌ Failed to create pool"
-			log.Fatalf("❌ Failed to create pool: %s", err)
+			PgMsg = fmt.Sprintf("❌ Unable to create connection pool: %v\n", err)
+			return
 		}
 
-		if err := Pg.Ping(ctx); err != nil {
-			PgMsg = "❌ Failed to ping database"
-			log.Fatalf("❌ Failed to ping database: %s", err)
+		// Test koneksi
+		if err := pool.Ping(context.Background()); err != nil {
+			PgMsg = fmt.Sprintf("❌ Unable to ping database: %v\n", err)
+			return
 		}
 
-		PgMsg = "✅ Connected to Postgres successfully"
-		log.Println("✅ Connected to Postgres successfully")
+		Pg = pool
+		PgMsg = "✅ Database connected successfully"
 	})
 
 	return Pg
 }
 
-func GetPostgres() *pgxpool.Pool {
+func GetDB() *pgxpool.Pool {
 	if Pg == nil {
-		return InitPostgres()
+		return InitDB()
 	}
 	return Pg
 }
