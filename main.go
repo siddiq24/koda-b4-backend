@@ -32,7 +32,5 @@ func main() {
 	r.Use(middlewares.Cors())
 	routers.InitRouter(r)
 
-	// port := os.Getenv("PORT")
-	// r.Run(fmt.Sprintf(":%s", port))
-	r.Run(":8090")
+	r.Run(":9081")
 }
