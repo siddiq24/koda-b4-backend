@@ -1,35 +1,248 @@
 @BASE_URL=http://localhost:8085
+# @BASE_URL=https://backend-coffee-shop-g7zvurdj3-siddiqs-projects-d04cdf38.vercel.app/
 
-
-###=========================================###
+GET  {{BASE_URL}}
+###############################################
 ###             AUTHENTICATION              ###
-###=========================================###
+###############################################
 
-### REGISTER
+###=============== REGISTER ================###
 POST {{BASE_URL}}/auth/register
 Content-Type: application/json
 
 {
-    "fullname": "User",
-    "email": "user1@fore.com",
-    "password": "12345678",
-    "role": "user"
+    "fullname": "Sidik Wisnu",
+    "email": "sidikwisnusasmito@gmail.com",
+    "password": "12345678"
 }
+###--------------------------------------------
 
-
-### LOGIN ADMIN
+###============== LOGIN USER ===============###
 POST {{BASE_URL}}/auth/login
 Content-Type: application/json
 
 {
-    "email": "admin@fore.com",
-    "password": "12345678"
+    "email": "sidikwisnusasmito@gmail.com",
+    "password": "65567459"
 }
-### LOGIN USER
-POST {{BASE_URL}}/auth/login
+
+
+###-------------------------------------------
+
+@TOKEN=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NjM0MzI5NjcsImlkIjoxMiwicm9sZSI6InVzZXIifQ.cSHvOq8E5WOlw8_MIk5YomKEfm40d2ShTUlB_lWr6Fs
+
+###############################################
+###            FORGOT PASSwORD              ###
+###-----------------------------------------###
+
+###============= REQUEST TOKEN =============###
+POST {{BASE_URL}}/auth/forgot-password
 Content-Type: application/json
 
 {
-    "email": "sidik@wisnu.com",
-    "password": "12345678"
+    "email": "sidikwisnusasmito@gmail.com"
 }
+
+###============= Verify TOKEN =============###
+POST  {{BASE_URL}}/auth/insert-pin
+Content-Type: application/json
+
+{
+  "email" : "sidikwisnusasmito@gmail.com",
+  "pin" : "65567459"
+
+}
+###=========== UPDATE PASSWORD ===========###
+POST {{BASE_URL}}/auth/set-new-password
+Content-Type: application/json
+
+{
+  "email" : "sidikwisnusasmito@gmail.com",
+  "pin" : "70977994",
+  "new_password": "123456789"
+}
+
+###############################################
+###              TRANSACTIONS               ###
+###############################################
+
+###============= FAV PRODUCTS ==============###
+GET  {{BASE_URL}}/products/favorite
+Authorization: {{TOKEN}}
+
+###======== RECOMENDATIONS PRODUCTS ========###
+GET  {{BASE_URL}}/products/1/recomendation
+
+
+###============= ALL PRODUCTS ==============###
+# page | search | cat | minPrice | maxPrice | shortBy | asc | limit
+GET  {{BASE_URL}}/products?search=latte
+
+###============= RECOMENDATION ==============###
+GET  {{BASE_URL}}/products/24/recomendation
+
+###=============== ADD TO CART ==============###
+POST {{BASE_URL}}/cart
+Authorization: {{TOKEN}}
+Content-Type: application/json
+
+{
+  "product_id" : 5,
+  "size_id" : 1,
+  "quantity" : 2
+}
+
+###=============== LIST CART ==============###
+GET  {{BASE_URL}}/cart/list
+Authorization: {{TOKEN}}
+
+
+###=============== LIST CART ==============###
+GET  {{BASE_URL}}/cart/3
+Authorization: {{TOKEN}}
+
+
+###=============== CHECKOUT ===============###
+POST   {{BASE_URL}}/transactions
+Authorization: {{TOKEN}}
+Content-Type: application/json
+
+{
+  "name" : "yanto",
+  "address" : "jl mangga 2",
+  "phone" : "098765432",
+  "email" : "sidikwisnusasmito@gmail.com",
+  "payment_method_id" : 1,
+  "delivery_id" : 1
+}
+
+###============= ORDER HISTORY ============###
+GET {{BASE_URL}}/transactions/history
+Authorization: {{TOKEN}}
+
+###============= ORDER DETAILS ============###
+GET {{BASE_URL}}/transactions/history/VIA-1763348737-12
+Authorization: {{TOKEN}}
+
+
+###############################################
+###                 PROFILE                 ###
+###############################################
+
+###============ PROFILE DETAILS ============###
+GET  {{BASE_URL}}/profile
+Authorization: {{TOKEN}}
+
+###============= UPDATE PROFILE ============###
+PATCH {{BASE_URL}}/profile
+Authorization: {{TOKEN}}
+Content-Type: application/json
+
+{
+    "user_id" : "",
+    "full_name" : "Siddiqrm24",
+    "phone" : "34567876543",
+    "email" : "",
+    "address" : ""
+}
+
+
+###========== UPDATE IMAGE PROFILE =========###
+PATCH {{BASE_URL}}/profile/image
+Authorization: {{TOKEN}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="image"; filename="foto.jpg"
+Content-Type: image/jpeg
+
+< C:\Users\koda\OneDrive\Pictures\134066089734825695.jpg
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
+
+
+###=============== LOGOUT ================###
+POST {{BASE_URL}}/auth/logout
+Content-Type: application/json
+Authorization: {{TOKEN}}
+
+
+
+
+###############################################
+###                  ADMIN                  ###
+###############################################
+
+###================ PRODUCTS ===============###
+#                                 page | search
+GET {{BASE_URL}}/admin/products
+# GET {{BASE_URL}}/admin/products?page=&search=choco
+Authorization: {{TOKEN}}
+
+###========== CREATE NEW PRODUCTS ==========###
+POST {{BASE_URL}}/admin/products
+Authorization: {{TOKEN}}
+Content-Type: application/json
+
+{
+    "title": "Espresso Premium NEW",
+    "description": "Rich and bold espresso coffee",
+    "base_price": 35000,
+    "stock": 100,
+    "category_id": 1,
+    "sizes": [1, 2, 3]
+}
+
+###############################################
+###           Order new products            ###
+###############################################
+
+
+###============= ALL PRODUCTS ==============###
+# page | search | cat | minPrice | maxPrice | shortBy | asc | limit
+# GET  {{BASE_URL}}/products?page=&limit=&search=&cat=1&cat=2
+GET  {{BASE_URL}}/products?cat=1&cat=2
+Authorization: {{TOKEN}}
+
+###=============== ADD TO CART ==============###
+POST {{BASE_URL}}/cart
+Authorization: {{TOKEN}}
+Content-Type: application/json
+
+{
+  "product_id" : 51, 
+  "varian_id" : 1,
+  "size_id" : 1,
+  "quantity" : 1
+}
+
+###=============== LIST CART ==============###
+GET  {{BASE_URL}}/cart/list
+Authorization: {{TOKEN}}
+
+
+###=============== CHECKOUT ===============###
+POST   {{BASE_URL}}/transactions
+Authorization: {{TOKEN}}
+Content-Type: application/json
+
+{
+  "name" : "yanto",
+  "address" : "jl mangga 2",
+  "phone" : "098765432",
+  "email" : "user5@fore.com",
+  "payment_method_id" : 1,
+  "delivery_id" : 1
+}
+
+###============= ORDER HISTORY ============###
+GET {{BASE_URL}}/transactions/history
+Authorization: {{TOKEN}}
+
+###============= ORDER DETAILS ============###
+GET {{BASE_URL}}/transactions/history/VIA-1763329086-8
+Authorization: {{TOKEN}}
+
+
+POST {{BASE_URL}}/propil
+Content-Type: multipart/form-data
