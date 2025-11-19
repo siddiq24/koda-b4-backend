@@ -65,5 +65,3 @@ jobs:
           script: |
             cd /root/koda-backend
             docker pull ghcr.io/${{ github.repository_owner }}/koda-b4-backend:latest
-            docker compose down
-            docker compose up -d
