@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"github.com/siddiq24/backend-coffee-shop/configs"
 	"github.com/siddiq24/backend-coffee-shop/libs"
 	"github.com/siddiq24/backend-coffee-shop/models"
 )
@@ -37,7 +38,7 @@ func AuthMiddleware(Role string) gin.HandlerFunc {
 		key := "jwt:blacklist:" + tokenString
 		fmt.Println("key from middleware : ", key)
 
-		blacklisted, err := models.Rdb.Get(c, key).Result()
+		blacklisted, err := configs.GetRedis().Get(c, key).Result()
 		if err != nil && err != redis.Nil {
 			c.JSON(http.StatusInternalServerError, models.JSON_Response{
 				Success: false,
