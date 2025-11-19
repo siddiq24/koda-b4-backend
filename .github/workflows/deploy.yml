@@ -64,6 +64,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             cd ~/server
-            docker compose /home/sidik/server/docker-compose.yaml pull
-            docker compose /home/sidik/server/docker-compose.yaml up -d
+            docker compose -f /home/sidik/server/docker-compose.yaml down -v
+            docker compose -f /home/sidik/server/docker-compose.yaml pull
+            docker compose -f /home/sidik/server/docker-compose.yaml up -d
             docker system prune -af --volumes
