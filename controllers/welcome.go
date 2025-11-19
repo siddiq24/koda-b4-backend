@@ -10,10 +10,11 @@ import (
 func Welcome(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"message":     "Coffee Shop API is running!",
-		"status":      "success",
-		"environment": os.Getenv("VERCEL_ENV"),
+		"status":      "Berhasil",
+		"environment": os.Getenv("ENVIRONMENT"),
 		"postgres":    configs.PgMsg,
 		"redis":       configs.RdbMsg,
+		"welcome":     "From Sidik Wisnu",
 	})
 }
 
