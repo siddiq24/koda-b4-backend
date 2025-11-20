@@ -109,6 +109,7 @@ type ForgotPassword struct {
 	Email       string `json:"email"`
 	Pin         string `json:"pin"`
 	NewPassword string `json:"new_password"`
+	Origin      string `json:"origin"`
 }
 
 func (m *Auth) UpdatePassword(ctx context.Context, req ForgotPassword) error {
