@@ -4,36 +4,72 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
-type Profile struct {
-	Id       int            `json:"id"`
-	UserId   int            `json:"user_id"`
-	Fullname string         `json:"full_name"`
-	Image    sql.NullString `json:"image"`
-	Phone    sql.NullString `json:"phone"`
-	Email    string         `json:"email"`
-	Address  sql.NullString `json:"address"`
+type ProfileRequest struct {
+	UserId    int       `json:"user_id"`
+	Fullname  string    `json:"full_name"`
+	Phone     string    `json:"phone"`
+	Email     string    `json:"email"`
+	Address   string    `json:"address"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func EditProfile(c context.Context, p Profile) (Profile, error) {
-	fmt.Println("request:", p)
-	if p.Fullname != "" {
-		Pg.Exec(c, `UPDATE profiles SET fullname = $1 WHERE user_id = $2`, p.Fullname, p.UserId)
-	}
-	if p.Phone.Valid {
-		Pg.Exec(c, `UPDATE profiles SET phone = $1 WHERE user_id = $2`, p.Phone, p.UserId)
-	}
-	if p.Email != "" {
-		Pg.Exec(c, `UPDATE profiles SET email = $1 WHERE user_id = $2`, p.Phone, p.UserId)
-	}
-	if p.Address.Valid {
-		Pg.Exec(c, `UPDATE profiles SET address = $1 WHERE user_id = $2`, p.Address, p.UserId)
+type Profile struct {
+	Id        int            `json:"id"`
+	UserId    int            `json:"user_id"`
+	Fullname  string         `json:"full_name"`
+	Image     sql.NullString `json:"image"`
+	Phone     sql.NullString `json:"phone"`
+	Email     string         `json:"email"`
+	Address   sql.NullString `json:"address"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt sql.NullTime   `json:"updated_at"`
+}
+
+func EditProfile(c context.Context, p ProfileRequest) (ProfileRequest, error) {
+	var (
+		existingFullname string
+		existingPhone    sql.NullString
+		existingAddress  sql.NullString
+	)
+
+	err := Pg.QueryRow(c, `
+		SELECT fullname, phone, address
+		FROM profiles 
+		WHERE user_id = $1
+	`, p.UserId).Scan(&existingFullname, &existingPhone, &existingAddress)
+
+	if err != nil {
+		return ProfileRequest{}, fmt.Errorf("failed to get existing profile: %w", err)
 	}
 
-	if err := Pg.QueryRow(c, `SELECT fullname, image, phone, address FROM profiles WHERE user_id = $1`, p.UserId).Scan(&p.Fullname, &p.Image, &p.Phone, &p.Address); err != nil {
-		return Profile{}, err
+	if p.Fullname == "" {
+		p.Fullname = existingFullname
 	}
+	if p.Phone == "" {
+		p.Phone = existingPhone.String
+	}
+	if p.Address == "" {
+		p.Address = existingAddress.String
+	}
+
+	err = Pg.QueryRow(c, `
+		UPDATE profiles
+		SET fullname = $1, phone = $2, address = $3
+		WHERE user_id = $4
+		RETURNING fullname, phone, address
+	`, p.Fullname, p.Phone, p.Address, p.UserId).Scan(
+		&p.Fullname,
+		&p.Phone,
+		&p.Address,
+	)
+
+	if err != nil {
+		return ProfileRequest{}, fmt.Errorf("failed to update profile: %w", err)
+	}
+
 	return p, nil
 }
 
