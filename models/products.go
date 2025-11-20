@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"math"
 
@@ -39,8 +40,13 @@ type Product_ress struct {
 	Discount  sql.NullFloat64 `json:"discount"`
 	Category  string          `json:"category"`
 	Images    []string        `json:"images"`
-	Sizes     []string        `json:"sizes"`
+	Sizes     []Size          `json:"sizes"`
 	Frequency int             `json:"freq,omitempty"`
+}
+
+type Size struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
 }
 
 type Product struct{}
@@ -63,7 +69,7 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 			"COALESCE(pr.discount, 0) AS discount",
 			"c.name AS category_name",
 			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
-			"COALESCE(ARRAY_AGG(DISTINCT sz.name) FILTER (WHERE sz.name IS NOT NULL), '{}') AS sizes",
+			"COALESCE(json_agg(DISTINCT jsonb_build_object('id', sz.id, 'name', sz.name)) FILTER (WHERE sz.id IS NOT NULL), '[]') AS sizes",
 		).
 		From("products p").
 		LeftJoin("categories c ON c.id = p.category_id").
@@ -151,7 +157,8 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 
 	for rows.Next() {
 		var pr Product_ress
-		var images, sizes []string
+		var images []string
+		var sizesJSON []byte
 
 		if err := rows.Scan(
 			&pr.Id,
@@ -161,13 +168,19 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 			&pr.Discount,
 			&pr.Category,
 			&images,
-			&sizes,
+			&sizesJSON,
 		); err != nil {
 			return nil, 0, fmt.Errorf("scan error: %w", err)
 		}
 
 		pr.Images = images
+
+		var sizes []Size
+		if err := json.Unmarshal(sizesJSON, &sizes); err != nil {
+			return nil, 0, fmt.Errorf("failed to unmarshal sizes: %w", err)
+		}
 		pr.Sizes = sizes
+
 		products = append(products, pr)
 	}
 
@@ -190,7 +203,7 @@ func (p *Product) FavProducts(c context.Context, limit int) ([]Product_ress, err
 			"COALESCE(pr.discount, 0) AS discount",
 			"c.name AS category_name",
 			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
-			"COALESCE(ARRAY_AGG(DISTINCT sz.name) FILTER (WHERE sz.name IS NOT NULL), '{}') AS sizes",
+			"COALESCE(json_agg(DISTINCT jsonb_build_object('id', sz.id, 'name', sz.name)) FILTER (WHERE sz.id IS NOT NULL), '[]') AS sizes",
 		).
 		From("products p").
 		LeftJoin("categories c ON c.id = p.category_id").
@@ -217,7 +230,8 @@ func (p *Product) FavProducts(c context.Context, limit int) ([]Product_ress, err
 
 	for rows.Next() {
 		var pr Product_ress
-		var images, sizes []string
+		var images []string
+		var sizesJSON []byte
 
 		if err := rows.Scan(
 			&pr.Id,
@@ -227,17 +241,84 @@ func (p *Product) FavProducts(c context.Context, limit int) ([]Product_ress, err
 			&pr.Discount,
 			&pr.Category,
 			&images,
-			&sizes,
+			&sizesJSON,
 		); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
 		pr.Images = images
+
+		var sizes []Size
+		if err := json.Unmarshal(sizesJSON, &sizes); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sizes: %w", err)
+		}
 		pr.Sizes = sizes
+
 		products = append(products, pr)
 	}
 
 	return products, nil
+}
+
+func (p *Product) GetProductByID(c context.Context, productID int64) (Product_ress, error) {
+	var product Product_ress
+	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	query := psql.
+		Select(
+			"p.id",
+			"p.title",
+			"p.description",
+			"p.base_price",
+			"COALESCE(pr.discount, 0) AS discount",
+			"c.name AS category_name",
+			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
+			"COALESCE(json_agg(DISTINCT jsonb_build_object('id', sz.id, 'name', sz.name)) FILTER (WHERE sz.id IS NOT NULL), '[]') AS sizes",
+		).
+		From("products p").
+		LeftJoin("categories c ON c.id = p.category_id").
+		LeftJoin("products_images i ON i.product_id = p.id").
+		LeftJoin("products_sizes ps ON ps.product_id = p.id").
+		LeftJoin("sizes sz ON sz.id = ps.size_id").
+		LeftJoin("products_promos pp ON pp.product_id = p.id").
+		LeftJoin("promos pr ON pr.id = pp.promo_id").
+		Where(sq.Eq{"p.id": productID}).
+		GroupBy("p.id", "c.name", "pr.discount")
+
+	sqlStr, args, err := query.ToSql()
+	if err != nil {
+		return product, fmt.Errorf("failed to build SQL: %w", err)
+	}
+
+	var images []string
+	var sizesJSON []byte
+
+	err = Pg.QueryRow(c, sqlStr, args...).Scan(
+		&product.Id,
+		&product.Title,
+		&product.Desc,
+		&product.Price,
+		&product.Discount,
+		&product.Category,
+		&images,
+		&sizesJSON,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return product, fmt.Errorf("product not found")
+		}
+		return product, fmt.Errorf("query error: %w", err)
+	}
+
+	product.Images = images
+
+	var sizes []Size
+	if err := json.Unmarshal(sizesJSON, &sizes); err != nil {
+		return product, fmt.Errorf("failed to unmarshal sizes: %w", err)
+	}
+	product.Sizes = sizes
+
+	return product, nil
 }
 
 func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Product_ress, error) {
@@ -254,7 +335,7 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 			"COALESCE(pr.discount, 0) AS discount",
 			"c.name AS category_name",
 			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
-			"COALESCE(ARRAY_AGG(DISTINCT sz.name) FILTER (WHERE sz.name IS NOT NULL), '{}') AS sizes",
+			"COALESCE(json_agg(DISTINCT jsonb_build_object('id', sz.id, 'name', sz.name)) FILTER (WHERE sz.id IS NOT NULL), '[]') AS sizes",
 			"COUNT(*) AS frequency",
 		).
 		From("products p1").
@@ -290,7 +371,8 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 
 	for rows.Next() {
 		var pr Product_ress
-		var images, sizes []string
+		var images []string
+		var sizesJSON []byte
 
 		if err := rows.Scan(
 			&pr.Id,
@@ -300,14 +382,20 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 			&pr.Discount,
 			&pr.Category,
 			&images,
-			&sizes,
+			&sizesJSON,
 			&pr.Frequency,
 		); err != nil {
 			return nil, fmt.Errorf("scan error: %w", err)
 		}
 
 		pr.Images = images
+
+		var sizes []Size
+		if err := json.Unmarshal(sizesJSON, &sizes); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal sizes: %w", err)
+		}
 		pr.Sizes = sizes
+
 		products = append(products, pr)
 	}
 
@@ -410,7 +498,6 @@ func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, erro
 }
 
 func (r *Product) GetCartByUserID(c context.Context, userID int) ([]CartItem, error) {
-	fmt.Println("user id", userID)
 	query := `
 		SELECT 
 			c.id,
@@ -438,7 +525,7 @@ func (r *Product) GetCartByUserID(c context.Context, userID int) ([]CartItem, er
 	var cartItems []CartItem
 	for rows.Next() {
 		var item CartItem
-		var variantName, sizeName *string
+		var variantName, sizeName sql.NullString
 
 		err := rows.Scan(
 			&item.ID,
