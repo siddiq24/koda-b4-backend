@@ -133,7 +133,7 @@ func (a *AuthController) Login(c *gin.Context) {
 
 func (a *AuthController) ForgotPassword(c *gin.Context) {
 	var req models.ForgotPassword
-	if err := c.ShouldBind(&req); err != nil || req.Email == "" {
+	if err := c.ShouldBind(&req); err != nil || req.Email == "" && req.Origin == "" {
 		models.ErrorResponse(c, http.StatusBadRequest, "Bad request", err)
 		return
 	}
@@ -153,7 +153,9 @@ func (a *AuthController) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	err = libs.SendEmail(req.Email, "Reset Password", pin)
+	link := fmt.Sprintf("%s?pin=%s&email=%s", req.Origin, pin, req.Email)
+
+	err = libs.SendEmail(req.Email, "Reset Password", pin, link)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal server error", err)
 		return
