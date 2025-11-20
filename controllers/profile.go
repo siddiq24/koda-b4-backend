@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -25,35 +24,41 @@ import (
 // @Router       /profile [patch]
 func UpdateProfile(c *gin.Context) {
 	token := c.Request.Header.Get("Authorization")
-	claim, err := libs.VerifyJwt(string(token[7:]))
-	if err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "Invalid token", err.Error())
+	if len(token) < 7 {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Invalid token", "Token too short")
 		return
 	}
 
-	req := models.Profile{
-		Fullname: c.PostForm("fullname"),
-		Phone:    sql.NullString{String: c.PostForm("phone")},
-		Address:  sql.NullString{String: c.PostForm("address")},
-	}
-	if req == (models.Profile{}) {
-		c.ShouldBind(&req)
+	claim, err := libs.VerifyJwt(token[7:])
+	if err != nil {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Invalid token", err.Error())
+		return
 	}
 
-	req.UserId = int((*claim)["id"].(float64))
+	var req models.ProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid request body", err.Error())
+		return
+	}
+
+	userId, ok := (*claim)["id"].(float64)
+	if !ok {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid user ID in token", "")
+		return
+	}
+	req.UserId = int(userId)
 
 	profile, err := models.EditProfile(c.Request.Context(), req)
 	if err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "gagal update profile", err.Error())
+		models.ErrorResponse(c, http.StatusInternalServerError, "Gagal update profile", err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, models.JSON_Response{
+	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
 		Message: "Sukses mengupdate profile",
 		Result:  profile,
 	})
-
 }
 
 func UpdateProfileImage(c *gin.Context) {
