@@ -78,16 +78,16 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 				return
 			}
 		}
-		results = append(results, products...)
+		results = products
 	} else {
 		if err := json.Unmarshal([]byte(value), &results); err != nil {
-			models.ErrorResponse(c, http.StatusBadRequest, "Gagal  unmarshal", err.Error())
+			models.ErrorResponse(c, http.StatusBadRequest, "Gagal unmarshal", err.Error())
 			return
 		}
 	}
 
 	fmt.Println(c.Request.URL.String())
-	prev := ""
+	prev := libs.BuildPageURL(c, 2)
 	next := ""
 
 	if page > 1 {
@@ -111,67 +111,154 @@ func (pc *ProductsController) GetAllProducts(c *gin.Context) {
 	})
 }
 
+// GetProductByID godoc
+// @Summary      Get product by ID
+// @Description  Mendapatkan detail produk berdasarkan ID
+// @Tags         products
+// @Accept       json
+// @Accept       x-www-form-urlencoded
+// @Produce      json
+// @Param        id   path      int  true  "Product ID"
+// @Success      200  {object}  models.JSON_Response{result=[]models.Product_ress} "Berhasil mendapatkan detail produk"
+// @Failure      400  {object}  models.JSON_Response "Invalid product ID"
+// @Failure      404  {object}  models.JSON_Response "Product not found"
+// @Failure      500  {object}  models.JSON_Response "Internal server error"
+// @Router       /products/{id} [get]
+func (pc *ProductsController) GetProductByID(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err.Error())
+		return
+	}
+
+	// PERBAIKAN: Gunakan GetProductByID yang mengembalikan single product
+	product, err := pc.Product.GetProductByID(c, int64(id))
+	if err != nil {
+		if err.Error() == "product not found" {
+			models.ErrorResponse(c, http.StatusNotFound, "Product not found", err.Error())
+			return
+		}
+		models.ErrorResponse(c, http.StatusInternalServerError, "Failed to get product", err.Error())
+		return
+	}
+
+	// PERBAIKAN: Return sebagai array untuk kompatibilitas dengan frontend
+	c.JSON(200, models.JSON_Response{
+		Success: true,
+		Message: "success get product",
+		Result:  []models.Product_ress{product}, // Wrap dalam array
+	})
+}
+
+// GetAllFavProducts godoc
+// @Summary      Get favorite products
+// @Description  Mendapatkan daftar produk favorit
+// @Tags         products
+// @Accept       json
+// @Accept       x-www-form-urlencoded
+// @Produce      json
+// @Param        limit   query     int  false  "Limit jumlah produk (default: 10)"
+// @Success      200  {object}  models.JSON_Response{result=[]models.Product_ress} "Berhasil mendapatkan produk favorit"
+// @Failure      500  {object}  models.JSON_Response "Internal server error"
+// @Router       /products/favorites [get]
 func (pc *ProductsController) GetAllFavProducts(c *gin.Context) {
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if limit == 0 {
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if limit <= 0 {
 		limit = 10
 	}
 
 	results, err := pc.Product.FavProducts(c, limit)
 	if err != nil {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Error from get Fav products ", err.Error())
+		models.ErrorResponse(c, http.StatusInternalServerError, "Error getting favorite products", err.Error())
 		return
 	}
 
 	c.JSON(200, models.JSON_Response{
 		Success: true,
-		Message: "success get products",
+		Message: "success get favorite products",
 		Result:  results,
 	})
 }
 
+// GetRekomendasiById godoc
+// @Summary      Get product recommendations
+// @Description  Mendapatkan rekomendasi produk berdasarkan product ID
+// @Tags         products
+// @Accept       json
+// @Accept       x-www-form-urlencoded
+// @Produce      json
+// @Param        id     path      int  true  "Product ID"
+// @Param        limit  query     int  false "Limit jumlah rekomendasi (default: 10)"
+// @Success      200  {object}  models.JSON_Response{result=[]models.Product_ress} "Berhasil mendapatkan rekomendasi produk"
+// @Failure      400  {object}  models.JSON_Response "Invalid parameters"
+// @Failure      500  {object}  models.JSON_Response "Internal server error"
+// @Router       /products/{id}/recommendations [get]
 func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
-		return
-	}
-	limit, err := strconv.Atoi(c.Query("limit"))
-	if err != nil && limit != 0 {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err.Error())
 		return
 	}
 
-	if limit == 0 {
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if err != nil {
 		limit = 10
 	}
 
-	ress, err := pc.Product.GetRecommendation(c.Request.Context(), id, limit)
+	if limit <= 0 {
+		limit = 10
+	}
+
+	results, err := pc.Product.GetRecommendation(c.Request.Context(), id, limit)
 	if err != nil {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Invalid Param ", err.Error())
+		models.ErrorResponse(c, http.StatusInternalServerError, "Failed to get recommendations", err.Error())
 		return
 	}
 
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
-		Message: "Get recomendation Products successfully",
-		Result:  ress,
+		Message: "Get product recommendations successfully",
+		Result:  results,
 	})
 }
 
+// CreateCart godoc
+// @Summary      Add product to cart
+// @Description  Menambahkan produk ke keranjang belanja
+// @Tags         cart
+// @Accept       json
+// @Accept       x-www-form-urlencoded
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        request  body      models.CartRequest  true  "Cart request"
+// @Success      200  {object}  models.JSON_Response{result=models.CartItem} "Berhasil menambahkan ke keranjang"
+// @Failure      400  {object}  models.JSON_Response "Invalid request"
+// @Failure      401  {object}  models.JSON_Response "Unauthorized"
+// @Failure      500  {object}  models.JSON_Response "Internal server error"
+// @Router       /cart [post]
 func (pc *ProductsController) CreateCart(c *gin.Context) {
-	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
-	if err != nil {
-		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+	authHeader := c.Request.Header.Get("Authorization")
+	if len(authHeader) < 8 {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "Invalid authorization header")
+		return
 	}
+
+	claim, err := libs.VerifyJwt(authHeader[7:])
+	if err != nil {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", err.Error())
+		return
+	}
+
 	id := int((*claim)["id"].(float64))
 	var req models.CartRequest
 	req.UserId = id
+
 	if err := c.ShouldBind(&req); err != nil {
-		models.ErrorResponse(c, http.StatusBadRequest, "Request Invalid", err.Error())
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid request", err.Error())
 		return
 	}
-	ress, err := pc.Product.AddToCart(c.Request.Context(), req)
+
+	result, err := pc.Product.AddToCart(c.Request.Context(), req)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
 		return
@@ -180,22 +267,45 @@ func (pc *ProductsController) CreateCart(c *gin.Context) {
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
 		Message: "Add product to cart successfully",
-		Result:  ress,
+		Result:  result,
 	})
 }
 
+// GetProductCart godoc
+// @Summary      Get cart item by ID
+// @Description  Mendapatkan item keranjang berdasarkan ID
+// @Tags         cart
+// @Accept       json
+// @Accept       x-www-form-urlencoded
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      int  true  "Cart Item ID"
+// @Success      200  {object}  models.JSON_Response{result=models.CartItem} "Berhasil mendapatkan item keranjang"
+// @Failure      400  {object}  models.JSON_Response "Invalid cart ID"
+// @Failure      401  {object}  models.JSON_Response "Unauthorized"
+// @Failure      500  {object}  models.JSON_Response "Internal server error"
+// @Router       /cart/{id} [get]
 func (pc *ProductsController) GetProductCart(c *gin.Context) {
-	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
-	if err != nil {
-		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+	authHeader := c.Request.Header.Get("Authorization")
+	if len(authHeader) < 8 {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "Invalid authorization header")
+		return
 	}
+
+	claim, err := libs.VerifyJwt(authHeader[7:])
+	if err != nil {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", err.Error())
+		return
+	}
+
 	uid := int((*claim)["id"].(float64))
 	pid, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
+		models.ErrorResponse(c, http.StatusBadRequest, "Invalid cart ID", err.Error())
 		return
 	}
-	ress, err := pc.Product.GetCartItemByID(c.Request.Context(), uid, pid)
+
+	result, err := pc.Product.GetCartItemByID(c.Request.Context(), uid, pid)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Internal service error", err.Error())
 		return
@@ -204,19 +314,38 @@ func (pc *ProductsController) GetProductCart(c *gin.Context) {
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
 		Message: "Get product from cart successfully",
-		Result:  ress,
+		Result:  result,
 	})
 }
 
-func (pc *ProductsController) GetfullCard(c *gin.Context) {
-	claim, err := libs.VerifyJwt((c.Request.Header.Get("Authorization")[7:]))
-	if err != nil {
-		models.ErrorResponse(c, http.StatusNetworkAuthenticationRequired, "Unauthorize", err.Error())
+// GetFullCart godoc
+// @Summary      Get user's full cart
+// @Description  Mendapatkan semua item keranjang milik user
+// @Tags         cart
+// @Accept       json
+// @Accept       x-www-form-urlencoded
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Success      200  {object}  models.JSON_Response{result=[]models.CartItem} "Berhasil mendapatkan keranjang"
+// @Failure      401  {object}  models.JSON_Response "Unauthorized"
+// @Failure      500  {object}  models.JSON_Response "Internal server error"
+// @Router       /cart [get]
+func (pc *ProductsController) GetFullCart(c *gin.Context) {
+	authHeader := c.Request.Header.Get("Authorization")
+	if len(authHeader) < 8 {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", "Invalid authorization header")
 		return
 	}
+
+	claim, err := libs.VerifyJwt(authHeader[7:])
+	if err != nil {
+		models.ErrorResponse(c, http.StatusUnauthorized, "Unauthorized", err.Error())
+		return
+	}
+
 	id := int((*claim)["id"].(float64))
 
-	ress, err := pc.Product.GetCartByUserID(c.Request.Context(), id)
+	results, err := pc.Product.GetCartByUserID(c.Request.Context(), id)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Server error", err.Error())
 		return
@@ -224,8 +353,7 @@ func (pc *ProductsController) GetfullCard(c *gin.Context) {
 
 	c.JSON(http.StatusOK, models.JSON_Response{
 		Success: true,
-		Message: "Get all list cart successfully",
-		Result:  ress,
+		Message: "Get all cart items successfully",
+		Result:  results,
 	})
-
 }
