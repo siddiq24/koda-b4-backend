@@ -461,23 +461,23 @@ func (p *Product) GetRecommendation(c context.Context, id int, page, limit int) 
 }
 
 type CartRequest struct {
-	OrderId   int `json:"order_id" form:"order_id"`
-	UserId    int `json:"user_id" form:"user_id"`
-	ProductId int `json:"product_id" form:"product_id"`
-	VarianId  int `json:"varian_id" form:"varian_id"`
-	SizeId    int `json:"size_id" form:"size_id"`
+	OrderId   int `json:"orderId" form:"orderId"`
+	UserId    int `json:"userId" form:"userId"`
+	ProductId int `json:"productId" form:"productId"`
+	VarianId  int `json:"varianId" form:"varianId"`
+	SizeId    int `json:"sizeId" form:"sizeId"`
 	Qty       int `json:"quantity" form:"quantity"`
 }
 
 type CartItem struct {
 	ID          int64   `json:"id"`
-	UserId      int     `json:"user_id"`
-	ProductId   int     `json:"product_id"`
-	VarianId    *int    `json:"varian_id"`
-	SizeId      *int    `json:"size_id"`
+	UserId      int     `json:"userId"`
+	ProductId   int     `json:"productId"`
+	VarianId    *int    `json:"varianId"`
+	SizeId      *int    `json:"sizeId"`
 	Qty         int     `json:"quantity"`
 	Subtotal    float64 `json:"subtotal"`
-	ProductName string  `json:"product_name"`
+	ProductName string  `json:"productName"`
 }
 
 func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, error) {
