@@ -37,14 +37,20 @@ type Product_ress struct {
 	Title     string          `json:"title"`
 	Desc      string          `json:"desc"`
 	Price     uint64          `json:"price"`
+	Stock     uint64          `json:"stock"`
 	Discount  sql.NullFloat64 `json:"discount"`
 	Category  string          `json:"category"`
 	Images    []string        `json:"images"`
 	Sizes     []Size          `json:"sizes"`
+	Variants  []Variant       `json:"variants"`
 	Frequency int             `json:"freq,omitempty"`
 }
 
 type Size struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+type Variant struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -270,16 +276,20 @@ func (p *Product) GetProductByID(c context.Context, productID int64) (Product_re
 			"p.title",
 			"p.description",
 			"p.base_price",
+			"p.stock",
 			"COALESCE(pr.discount, 0) AS discount",
 			"c.name AS category_name",
 			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
 			"COALESCE(json_agg(DISTINCT jsonb_build_object('id', sz.id, 'name', sz.name)) FILTER (WHERE sz.id IS NOT NULL), '[]') AS sizes",
+			"COALESCE(json_agg(DISTINCT jsonb_build_object('id', v.id, 'name', v.name)) FILTER (WHERE v.id IS NOT NULL), '[]') AS variants",
 		).
 		From("products p").
 		LeftJoin("categories c ON c.id = p.category_id").
 		LeftJoin("products_images i ON i.product_id = p.id").
 		LeftJoin("products_sizes ps ON ps.product_id = p.id").
 		LeftJoin("sizes sz ON sz.id = ps.size_id").
+		LeftJoin("products_variants pv ON pv.product_id = p.id").
+		LeftJoin("variants v ON v.id = pv.variant_id").
 		LeftJoin("products_promos pp ON pp.product_id = p.id").
 		LeftJoin("promos pr ON pr.id = pp.promo_id").
 		Where(sq.Eq{"p.id": productID}).
@@ -292,16 +302,19 @@ func (p *Product) GetProductByID(c context.Context, productID int64) (Product_re
 
 	var images []string
 	var sizesJSON []byte
+	var variantJSON []byte
 
 	err = Pg.QueryRow(c, sqlStr, args...).Scan(
 		&product.Id,
 		&product.Title,
 		&product.Desc,
 		&product.Price,
+		&product.Stock,
 		&product.Discount,
 		&product.Category,
 		&images,
 		&sizesJSON,
+		&variantJSON,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -318,13 +331,51 @@ func (p *Product) GetProductByID(c context.Context, productID int64) (Product_re
 	}
 	product.Sizes = sizes
 
+	var variants []Variant
+	if err := json.Unmarshal(variantJSON, &variants); err != nil {
+		return product, fmt.Errorf("failed to unmarshal sizes: %w", err)
+	}
+	product.Variants = variants
+
 	return product, nil
 }
 
-func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Product_ress, error) {
+func (p *Product) GetRecommendation(c context.Context, id int, page, limit int) ([]Product_ress, int, error) {
 	var products []Product_ress
 
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
 	psql := sq.StatementBuilder.PlaceholderFormat(sq.Dollar)
+
+	countQuery := psql.
+		Select("COUNT(DISTINCT p2.id)").
+		From("products p1").
+		JoinClause("FULL JOIN products_tags pt ON pt.product_id = p1.id").
+		JoinClause("FULL JOIN products_tags pt2 ON pt2.tag_id = pt.tag_id").
+		JoinClause("FULL JOIN orders_products op ON op.product_id = p1.id").
+		JoinClause("FULL JOIN orders_products op2 ON op2.invoice = op.invoice").
+		JoinClause("FULL JOIN products p2 ON p2.id = pt2.product_id OR p2.id = op2.product_id OR p2.category_id = p1.category_id").
+		Where(sq.And{
+			sq.Eq{"p1.id": id},
+			sq.NotEq{"p2.id": id},
+		})
+
+	countSqlStr, countArgs, err := countQuery.ToSql()
+	if err != nil {
+		return nil, 0, fmt.Errorf("error building count query: %w", err)
+	}
+
+	var totalCount int
+	err = Pg.QueryRow(c, countSqlStr, countArgs...).Scan(&totalCount)
+	if err != nil {
+		return nil, 0, fmt.Errorf("count query error: %w", err)
+	}
 
 	query := psql.
 		Select(
@@ -332,6 +383,7 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 			"p2.title",
 			"p2.description",
 			"p2.base_price",
+			"p2.stock",
 			"COALESCE(pr.discount, 0) AS discount",
 			"c.name AS category_name",
 			"COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images",
@@ -356,16 +408,17 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 		}).
 		GroupBy("p2.id", "c.name", "pr.discount").
 		OrderBy("frequency DESC").
-		Limit(uint64(limit))
+		Limit(uint64(limit)).
+		Offset(uint64(offset))
 
 	sqlStr, args, err := query.ToSql()
 	if err != nil {
-		return nil, fmt.Errorf("error building query: %w", err)
+		return nil, 0, fmt.Errorf("error building query: %w", err)
 	}
 
 	rows, err := Pg.Query(c, sqlStr, args...)
 	if err != nil {
-		return nil, fmt.Errorf("query error: %w", err)
+		return nil, 0, fmt.Errorf("query error: %w", err)
 	}
 	defer rows.Close()
 
@@ -379,27 +432,32 @@ func (p *Product) GetRecommendation(c context.Context, id int, limit int) ([]Pro
 			&pr.Title,
 			&pr.Desc,
 			&pr.Price,
+			&pr.Stock,
 			&pr.Discount,
 			&pr.Category,
 			&images,
 			&sizesJSON,
 			&pr.Frequency,
 		); err != nil {
-			return nil, fmt.Errorf("scan error: %w", err)
+			return nil, 0, fmt.Errorf("scan error: %w", err)
 		}
 
 		pr.Images = images
 
 		var sizes []Size
 		if err := json.Unmarshal(sizesJSON, &sizes); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal sizes: %w", err)
+			return nil, 0, fmt.Errorf("failed to unmarshal sizes: %w", err)
 		}
 		pr.Sizes = sizes
 
 		products = append(products, pr)
 	}
 
-	return products, nil
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("rows iteration error: %w", err)
+	}
+
+	return products, totalCount, nil
 }
 
 type CartRequest struct {
