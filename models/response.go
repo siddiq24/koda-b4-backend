@@ -7,11 +7,12 @@ import (
 )
 
 type JSON_Response struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
-	Token   string `json:"token,omitempty"`
-	Result  any    `json:"result,omitempty"`
-	Error   any    `json:"error,omitempty"`
+	Success   bool   `json:"success"`
+	Message   string `json:"message"`
+	Token     string `json:"token,omitempty"`
+	TotalPage int    `json:"totalPage,omitempty"`
+	Result    any    `json:"result,omitempty"`
+	Error     any    `json:"error,omitempty"`
 }
 
 func ErrorResponse(c *gin.Context, stts int, msg string, err any) {
