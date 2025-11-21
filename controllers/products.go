@@ -3,6 +3,7 @@ package controllers
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"time"
@@ -200,7 +201,12 @@ func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 		return
 	}
 
-	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "4"))
+	if err != nil {
+		limit = 10
+	}
+
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
 	if err != nil {
 		limit = 10
 	}
@@ -209,16 +215,19 @@ func (pc *ProductsController) GetRekomendasiById(c *gin.Context) {
 		limit = 10
 	}
 
-	results, err := pc.Product.GetRecommendation(c.Request.Context(), id, limit)
+	results, totalCount, err := pc.Product.GetRecommendation(c.Request.Context(), id, page, limit)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Failed to get recommendations", err.Error())
 		return
 	}
 
+	totalPages := int(math.Ceil(float64(totalCount) / float64(limit)))
+
 	c.JSON(http.StatusOK, models.JSON_Response{
-		Success: true,
-		Message: "Get product recommendations successfully",
-		Result:  results,
+		Success:   true,
+		Message:   "Get product recommendations successfully",
+		TotalPage: totalPages,
+		Result:    results,
 	})
 }
 
