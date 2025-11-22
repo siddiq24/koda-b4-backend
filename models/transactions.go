@@ -213,6 +213,7 @@ type OrderItem struct {
 	Subtotal    float64 `json:"subtotal"`
 	Size        string  `json:"size"`
 	Variant     string  `json:"variant"`
+	Image       string  `json:"image"`
 }
 
 func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, userID int) (*TransactionHistory, error) {
@@ -233,7 +234,8 @@ func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, 
 					'quantity', op.qty,
 					'subtotal', op.subtotal,
 					'size', COALESCE(sz.name, ''),
-					'variant', COALESCE(v.name, '')
+					'variant', COALESCE(v.name, ''),
+					'image', i.image
 				)
 			) as items,
 			o.created_at,
@@ -245,6 +247,7 @@ func (r *Transactions) GetHistoryByInvoiceID(c context.Context, invoice string, 
 		LEFT JOIN orders_products op ON o.invoice = op.invoice
 		LEFT JOIN sizes sz ON op.size_id = sz.id
 		LEFT JOIN variants v ON op.varian_id = v.id
+		LEFT JOIN products_images i ON i.product_id = op.product_id
 		WHERE o.invoice = $1 AND o.user_id = $2
 		GROUP BY 
 			o.invoice, 
