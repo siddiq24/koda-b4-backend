@@ -8,8 +8,8 @@ import (
 )
 
 type ProfileRequest struct {
-	UserId    int       `json:"user_id"`
-	Fullname  string    `json:"full_name"`
+	UserId    int       `json:"userId"`
+	Fullname  string    `json:"fullName"`
 	Phone     string    `json:"phone"`
 	Email     string    `json:"email"`
 	Address   string    `json:"address"`
@@ -18,14 +18,14 @@ type ProfileRequest struct {
 
 type Profile struct {
 	Id        int            `json:"id"`
-	UserId    int            `json:"user_id"`
-	Fullname  string         `json:"full_name"`
+	UserId    int            `json:"userId"`
+	Fullname  string         `json:"fullname"`
 	Image     sql.NullString `json:"image"`
 	Phone     sql.NullString `json:"phone"`
 	Email     string         `json:"email"`
 	Address   sql.NullString `json:"address"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt sql.NullTime   `json:"updated_at"`
+	CreatedAt time.Time      `json:"createdAt"`
+	UpdatedAt sql.NullTime   `json:"updatedAt"`
 }
 
 func EditProfile(c context.Context, p ProfileRequest) (ProfileRequest, error) {
