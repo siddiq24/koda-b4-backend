@@ -79,16 +79,17 @@ func (h *TransactionController) GetHistory(c *gin.Context) {
 		Limit:   limit,
 	}
 
-	res, err := h.Transaction.GetHistory(c, req)
+	res, totalOrder, err := h.Transaction.GetHistory(c, req)
 	if err != nil {
 		models.ErrorResponse(c, http.StatusInternalServerError, "Service error", err.Error())
 		return
 	}
 
 	c.JSON(http.StatusOK, models.JSON_Response{
-		Success: true,
-		Message: "Get history successfully",
-		Result:  res,
+		Success:    true,
+		Message:    "Get history successfully",
+		TotalOrder: totalOrder,
+		Result:     res,
 	})
 }
 

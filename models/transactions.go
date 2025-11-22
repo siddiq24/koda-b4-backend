@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -141,7 +142,17 @@ type History_req struct {
 	Limit   int `json:"limit"`
 }
 
-func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_res, error) {
+func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_res, int, error) {
+	var totalOrder int
+	offset := (req.Page - 1) * req.Limit
+	log.Println(req.Limit, req.Page)
+
+	Pg.QueryRow(c, `
+		SELECT count(*) 
+		FROM orders o
+		LEFT JOIN status s ON s.id = o.status_id
+		WHERE o.user_id = $1 AND s.id = $2 AND EXTRACT(MONTH FROM o.created_at) = $3
+		`, req.User_id, req.Status, req.Month).Scan(&totalOrder)
 	rows, err := Pg.Query(c, `
 		SELECT 
 			o.invoice, 	
@@ -153,13 +164,14 @@ func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_
 		LEFT JOIN orders_products op ON op.invoice = o.invoice
 		LEFT JOIN products_images pi ON pi.product_id = op.product_id
 		LEFT JOIN status s ON s.id = o.status_id
-		WHERE o.user_id = $1
+		WHERE o.user_id = $1 AND s.id = $2 AND EXTRACT(MONTH FROM o.created_at) = $5
 		GROUP BY o.invoice, o.created_at, o.total_order, s.name
 		ORDER BY o.created_at DESC
-	`, req.User_id)
+		LIMIT $3 OFFSET $4
+	`, req.User_id, req.Status, req.Limit, offset, req.Month)
 
 	if err != nil {
-		return nil, fmt.Errorf("query failed: %w", err)
+		return nil, 0, fmt.Errorf("query failed: %w", err)
 	}
 	defer rows.Close()
 
@@ -187,9 +199,9 @@ func (t Transactions) GetHistory(c context.Context, req History_req) ([]History_
 		id++
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("row iteration error: %w", err)
+		return nil, 0, fmt.Errorf("row iteration error: %w", err)
 	}
-	return ress, nil
+	return ress, totalOrder, nil
 }
 
 type TransactionHistory struct {
