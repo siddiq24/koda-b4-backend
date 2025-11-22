@@ -461,20 +461,21 @@ func (p *Product) GetRecommendation(c context.Context, id int, page, limit int) 
 }
 
 type CartRequest struct {
-	OrderId   int `json:"orderId" form:"orderId"`
-	UserId    int `json:"userId" form:"userId"`
-	ProductId int `json:"productId" form:"productId"`
-	VarianId  int `json:"varianId" form:"varianId"`
-	SizeId    int `json:"sizeId" form:"sizeId"`
-	Qty       int `json:"quantity" form:"quantity"`
+	OrderId   int  `json:"orderId" form:"orderId"`
+	UserId    int  `json:"userId" form:"userId"`
+	ProductId int  `json:"productId" form:"productId"`
+	VarianId  *int `json:"varianId" form:"varianId"`
+	SizeId    *int `json:"sizeId" form:"sizeId"`
+	Qty       int  `json:"quantity" form:"quantity"`
 }
 
 type CartItem struct {
 	ID          int64   `json:"id"`
 	UserId      int     `json:"userId"`
 	ProductId   int     `json:"productId"`
-	VarianId    *int    `json:"varianId"`
-	SizeId      *int    `json:"sizeId"`
+	Varian      Variant `json:"varian"`
+	Size        Size    `json:"size"`
+	Image       string  `json:"image"`
 	Qty         int     `json:"quantity"`
 	Subtotal    float64 `json:"subtotal"`
 	ProductName string  `json:"productName"`
@@ -525,8 +526,8 @@ func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, erro
 			ID:          existingCartID,
 			UserId:      req.UserId,
 			ProductId:   req.ProductId,
-			VarianId:    &req.VarianId,
-			SizeId:      &req.SizeId,
+			Varian:      Variant{Id: *req.VarianId},
+			Size:        Size{Id: *req.SizeId},
 			Qty:         newQty,
 			Subtotal:    newSubtotal,
 			ProductName: productName,
@@ -547,8 +548,8 @@ func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, erro
 		ID:          cartID,
 		UserId:      req.UserId,
 		ProductId:   req.ProductId,
-		VarianId:    &req.VarianId,
-		SizeId:      &req.SizeId,
+		Varian:      Variant{Id: *req.VarianId},
+		Size:        Size{Id: *req.SizeId},
 		Qty:         req.Qty,
 		Subtotal:    subtotal,
 		ProductName: productName,
@@ -558,20 +559,25 @@ func (r *Product) AddToCart(c context.Context, req CartRequest) (*CartItem, erro
 func (r *Product) GetCartByUserID(c context.Context, userID int) ([]CartItem, error) {
 	query := `
 		SELECT 
+            DISTINCT
 			c.id,
 			c.user_id,
 			c.product_id,
-			c.varian_id,
-			c.size_id,
 			c.qty,
 			c.subtotal,
 			c.product_name,
+			v.id as variant_id,
 			v.name as variant_name,
-			s.name as size_name
+			s.id as size_id,
+			s.name as size_name,
+			pi.image
 		FROM carts c
 		LEFT JOIN variants v ON c.varian_id = v.id
 		LEFT JOIN sizes s ON c.size_id = s.id
+		LEFT JOIN products p ON p.id = c.product_id
+		LEFT JOIN products_images pi ON pi.product_id = p.id
 		WHERE c.user_id = $1
+		GROUP BY c.id, v.id, s.id, pi.image
 		ORDER BY c.id DESC`
 
 	rows, err := Pg.Query(c, query, userID)
@@ -583,23 +589,40 @@ func (r *Product) GetCartByUserID(c context.Context, userID int) ([]CartItem, er
 	var cartItems []CartItem
 	for rows.Next() {
 		var item CartItem
+		var variantID, sizeID sql.NullInt64
 		var variantName, sizeName sql.NullString
 
 		err := rows.Scan(
 			&item.ID,
 			&item.UserId,
 			&item.ProductId,
-			&item.VarianId,
-			&item.SizeId,
 			&item.Qty,
 			&item.Subtotal,
 			&item.ProductName,
+			&variantID,
 			&variantName,
+			&sizeID,
 			&sizeName,
+			&item.Image,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan cart item: %w", err)
 		}
+
+		if variantID.Valid {
+			item.Varian = Variant{
+				Id:   int(variantID.Int64),
+				Name: variantName.String,
+			}
+		}
+
+		if sizeID.Valid {
+			item.Size = Size{
+				Id:   int(sizeID.Int64),
+				Name: sizeName.String,
+			}
+		}
+
 		cartItems = append(cartItems, item)
 	}
 
@@ -661,6 +684,7 @@ func (r *Product) ClearUserCart(c context.Context, userID int) error {
 
 func (r *Product) GetCartItemByID(c context.Context, userID, cartID int) (*CartItem, error) {
 	var item CartItem
+	var varianID, sizeID sql.NullInt64
 
 	err := Pg.QueryRow(c, `
 		SELECT 
@@ -672,14 +696,22 @@ func (r *Product) GetCartItemByID(c context.Context, userID, cartID int) (*CartI
 		&item.ID,
 		&item.UserId,
 		&item.ProductId,
-		&item.VarianId,
-		&item.SizeId,
+		&varianID,
+		&sizeID,
 		&item.Qty,
 		&item.Subtotal,
 		&item.ProductName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get cart item: %w", err)
+	}
+
+	if varianID.Valid {
+		item.Varian = Variant{Id: int(varianID.Int64)}
+	}
+
+	if sizeID.Valid {
+		item.Size = Size{Id: int(sizeID.Int64)}
 	}
 
 	return &item, nil
