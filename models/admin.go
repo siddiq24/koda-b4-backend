@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -21,26 +22,30 @@ type ProductCreateDTO struct {
 	CategoryId  int     `json:"category_id" binding:"required"`
 	Images      []Image `json:"images"`
 	Sizes       []int   `json:"sizes"`
+	Variants    []int   `json:"variants"`
 }
 
 type ProductUpdateDTO struct {
-	Id          int     `json:"id"`
-	Title       string  `json:"title"`
-	Description string  `json:"description"`
-	BasePrice   float64 `json:"base_price"`
-	Stock       int     `json:"stock"`
-	CategoryId  int     `json:"category_id"`
+	Id          int      `json:"id"`
+	Title       *string  `json:"title"`
+	Description *string  `json:"description"`
+	BasePrice   *float64 `json:"basePrice"`
+	Stock       *int     `json:"stock"`
+	CategoryId  *int     `json:"categoryId"`
+	Variants    []int    `json:"variants"`
+	Sizes       []int    `json:"sizes"`
 }
 
 type ProductListItem struct {
-	Id           int     `json:"id"`
-	Title        string  `json:"title"`
-	Description  string  `json:"description"`
-	BasePrice    float64 `json:"base_price"`
-	Image        string  `json:"image"`
-	Sizes        string  `json:"sizes"`
-	Stock        int     `json:"stock"`
-	CategoryName string  `json:"category_name"`
+	Id           int       `json:"id"`
+	Title        string    `json:"title"`
+	Description  string    `json:"description"`
+	BasePrice    float64   `json:"basePrice"`
+	Images       []Image   `json:"images"`
+	Sizes        []Size    `json:"sizes"`
+	Variants     []Variant `json:"variants"`
+	Stock        int       `json:"stock"`
+	CategoryName string    `json:"category"`
 }
 
 // Categories
@@ -117,6 +122,16 @@ type Image struct {
 	Img string `json:"image"`
 }
 
+type Sizes struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type Variants struct {
+	Id   int    `json:"id"`
+	Name string `json:"name"`
+}
+
 // Query Params
 type Param struct {
 	Page   int    `form:"page"`
@@ -127,52 +142,73 @@ type Param struct {
 
 func (a *Admin) GetAllProducts(ctx *gin.Context, page int, search string) ([]ProductListItem, error) {
 	c := ctx.Request.Context()
+
 	if page < 1 {
 		page = 1
 	}
+
 	limit := 10
 	offset := (page - 1) * limit
+
 	searchPattern := "%" + search + "%"
 
-	query := `
+	mainQuery := `
 		SELECT 
-			p.id,
-			p.title,
-			p.description,
+			p.id, 
+			p.title, 
+			p.description, 
 			p.base_price,
-			COALESCE(MAX(i.image), '') as image,
-			COALESCE(STRING_AGG(DISTINCT sz.name, ', '), '') AS sizes,
-			p.stock,
-			COALESCE(c.name, '') as category_name
+			p.stock, 
+			COALESCE(c.name, '')
 		FROM products p
 		LEFT JOIN categories c ON c.id = p.category_id
-		LEFT JOIN products_images i ON i.product_id = p.id
-		LEFT JOIN products_sizes ps ON ps.product_id = p.id
-		LEFT JOIN sizes sz ON sz.id = ps.size_id
-		WHERE p.deleted_at IS NULL 
-		AND (p.title ILIKE $3 OR p.description ILIKE $3)
-		GROUP BY p.id, c.name
+		WHERE p.deleted_at IS NULL AND (p.title ILIKE $3 OR p.description ILIKE $3)
 		ORDER BY p.id DESC
 		LIMIT $1 OFFSET $2
 	`
 
-	rows, err := Pg.Query(c, query, limit, offset, searchPattern)
+	rows, err := Pg.Query(c, mainQuery, limit, offset, searchPattern)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query products: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 
 	var products []ProductListItem
+
 	for rows.Next() {
 		var p ProductListItem
-		if err := rows.Scan(&p.Id, &p.Title, &p.Description, &p.BasePrice, &p.Image, &p.Sizes, &p.Stock, &p.CategoryName); err != nil {
-			return nil, fmt.Errorf("failed to scan product: %w", err)
-		}
-		products = append(products, p)
-	}
+		var sizesJson, variantsJson, imagesJson []byte
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("rows iteration error: %w", err)
+		if err := rows.Scan(&p.Id, &p.Title, &p.Description, &p.BasePrice, &p.Stock, &p.CategoryName); err != nil {
+			return nil, err
+		}
+
+		// Fetch Image JSON
+		Pg.QueryRow(c,
+			`SELECT COALESCE(json_agg(json_build_object('id', id, 'image', image)), '[]')
+			 FROM products_images WHERE product_id = $1`, p.Id,
+		).Scan(&imagesJson)
+
+		// Fetch Sizes JSON
+		Pg.QueryRow(c,
+			`SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]')
+			 FROM products_sizes ps LEFT JOIN sizes s ON ps.size_id = s.id WHERE ps.product_id = $1`,
+			p.Id,
+		).Scan(&sizesJson)
+
+		// Fetch Variant JSON
+		Pg.QueryRow(c,
+			`SELECT COALESCE(json_agg(json_build_object('id', v.id, 'name', v.name)), '[]')
+			 FROM products_variants pv LEFT JOIN variants v ON pv.variant_id = v.id WHERE pv.product_id = $1`,
+			p.Id,
+		).Scan(&variantsJson)
+
+		// JSON → Struct (FIX: Do before append)
+		json.Unmarshal(sizesJson, &p.Sizes)
+		json.Unmarshal(variantsJson, &p.Variants)
+		json.Unmarshal(imagesJson, &p.Images)
+
+		products = append(products, p)
 	}
 
 	return products, nil
@@ -222,6 +258,14 @@ func (a *Admin) CreateProduct(c context.Context, p ProductCreateDTO) error {
 		}
 	}
 
+	// Insert variants
+	for _, VarianID := range p.Variants {
+		_, err = tx.Exec(c, `INSERT INTO products_variants (product_id, variant_id) VALUES ($1, $2)`, productID, VarianID)
+		if err != nil {
+			return fmt.Errorf("failed to insert product size: %w", err)
+		}
+	}
+
 	if err := tx.Commit(c); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -232,22 +276,59 @@ func (a *Admin) CreateProduct(c context.Context, p ProductCreateDTO) error {
 func (a *Admin) UpdateProduct(c context.Context, p ProductUpdateDTO) error {
 	query := `
 		UPDATE products 
-		SET title = COALESCE(NULLIF($2, ''), title),
-		    description = COALESCE(NULLIF($3, ''), description),
-		    base_price = COALESCE(NULLIF($4, 0), base_price),
-		    stock = COALESCE(NULLIF($5, 0), stock),
-		    category_id = COALESCE(NULLIF($6, 0), category_id),
-		    updated_at = now()
+		SET 
+			title = COALESCE($2, title),
+			description = COALESCE($3, description),
+			base_price = COALESCE($4, base_price),
+			stock = COALESCE($5, stock),
+			category_id = COALESCE($6, category_id),
+			updated_at = now()
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
-	result, err := Pg.Exec(c, query, p.Id, p.Title, p.Description, p.BasePrice, p.Stock, p.CategoryId)
+	result, err := Pg.Exec(c, query,
+		p.Id,
+		p.Title,
+		p.Description,
+		p.BasePrice,
+		p.Stock,
+		p.CategoryId,
+	)
+
 	if err != nil {
 		return fmt.Errorf("failed to update product: %w", err)
 	}
 
 	if result.RowsAffected() == 0 {
 		return fmt.Errorf("product not found or already deleted")
+	}
+
+	if p.Sizes != nil {
+		_, err = Pg.Exec(c, `DELETE FROM products_sizes WHERE product_id = $1`, p.Id)
+		if err != nil {
+			return err
+		}
+
+		for _, s := range p.Sizes {
+			_, err := Pg.Exec(c, `INSERT INTO products_sizes (product_id, size_id) VALUES ($1, $2)`, p.Id, s)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if p.Variants != nil {
+		_, err = Pg.Exec(c, `DELETE FROM products_variants WHERE product_id = $1`, p.Id)
+		if err != nil {
+			return err
+		}
+
+		for _, v := range p.Variants {
+			_, err := Pg.Exec(c, `INSERT INTO products_variants (product_id, variant_id) VALUES ($1, $2)`, p.Id, v)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
