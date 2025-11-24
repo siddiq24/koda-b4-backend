@@ -84,7 +84,8 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 		LeftJoin("sizes sz ON sz.id = ps.size_id").
 		LeftJoin("products_promos pp ON pp.product_id = p.id").
 		LeftJoin("promos pr ON pr.id = pp.promo_id").
-		GroupBy("p.id", "c.name", "pr.discount")
+		GroupBy("p.id", "c.name", "pr.discount").
+		Where("p.deleted_at IS NULL")
 
 	if prm.Search != "" {
 		search := "%" + prm.Search + "%"
