@@ -539,7 +539,7 @@ func (a AdminController) GetProductImage(c *gin.Context) {
 // @Success 201 {object} models.JSON_Response
 // @Router /admin/products/{product_id}/images [post]
 func (a AdminController) AddProductImage(c *gin.Context) {
-	productID, err := strconv.Atoi(c.Param("product_id"))
+	productID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		models.ErrorResponse(c, http.StatusBadRequest, "Invalid product ID", err.Error())
 		return
