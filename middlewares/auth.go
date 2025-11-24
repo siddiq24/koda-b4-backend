@@ -82,6 +82,7 @@ func AuthMiddleware(Role string) gin.HandlerFunc {
 
 		if Role == "all" {
 			c.Next()
+			return
 		}
 
 		if userRole != Role {
