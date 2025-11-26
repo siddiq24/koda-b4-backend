@@ -155,6 +155,7 @@ func (p *Product) AllProductFiltered(c context.Context, prm Product_Params) ([]P
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to build SQL: %w", err)
 	}
+	fmt.Println(sqlStr)
 
 	rows, err := Pg.Query(c, sqlStr, args...)
 	if err != nil {
