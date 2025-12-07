@@ -4,7 +4,7 @@ CREATE TABLE tags (
 );
 
 CREATE TABLE products_tags (
-    product_id INT REFERENCES products(id),
+    product_id BIGINT REFERENCES products(id),
     tag_id INT REFERENCES tags(id),
     PRIMARY KEY (product_id, tag_id)
 );

@@ -159,6 +159,66 @@ INSERT INTO products_images( product_id, image ) VALUES
 (50, 'https://static.fore.coffee/product/Malty%20Latte.jpg')
 ;
 
+-- Seed data untuk products_variants
+INSERT INTO products_variants (product_id, variant_id) VALUES
+-- Minuman dingin biasanya memiliki variant sugar dan ice
+(1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 8),  -- Ice Americano
+(2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 8),  -- Iced Bumi Latte
+(3, 1), (3, 2), (3, 3), (3, 4), (3, 5), (3, 6), (3, 8),  -- Iced Cappuccino
+(4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 8),  -- Double Iced Shaken Latte
+(5, 1), (5, 2), (5, 3), (5, 4), (5, 5), (5, 6), (5, 8),  -- Iced Café Latte
+-- Minuman kopi lainnya
+(6, 1), (6, 2), (6, 3), (6, 4), (6, 5), (6, 6), (6, 7), (6, 8),  -- Nutty Oat Latte
+(7, 1), (7, 2), (7, 3), (7, 4), (7, 5), (7, 6), (7, 8),  -- Iced Caramel Praline Macchiato
+(8, 1), (8, 2), (8, 3), (8, 4), (8, 5), (8, 6), (8, 8),  -- Iced Dark Chocolate
+(9, 1), (9, 2), (9, 3), (9, 4), (9, 5), (9, 6), (9, 8),  -- Iced Almond Choco
+-- Minuman tea based
+(10, 1), (10, 2), (10, 3), (10, 4), (10, 5), (10, 6), (10, 8),  -- Iced Matcha Green Tea
+(11, 1), (11, 2), (11, 3), (11, 4), (11, 5), (11, 6), (11, 8),  -- Iced Classic Milo
+(12, 1), (12, 2), (12, 3), (12, 4), (12, 5), (12, 6), (12, 8),  -- Iced Coco Peach Fusion
+(13, 1), (13, 2), (13, 3), (13, 4), (13, 5), (13, 6), (13, 8),  -- Hibiscus Lychee Peach Yakult
+(14, 1), (14, 2), (14, 3), (14, 4), (14, 5), (14, 6), (14, 8),  -- Sunny Citrus Jasmine
+(15, 1), (15, 2), (15, 3), (15, 4), (15, 5), (15, 6), (15, 8),  -- Iced English Breakfast
+(16, 1), (16, 2), (16, 3), (16, 4), (16, 5), (16, 6), (16, 8),  -- Iced Green Tea Jasmine
+(17, 1), (17, 2), (17, 3), (17, 4), (17, 5), (17, 6), (17, 8),  -- Iced Pure Chamomile
+(18, 1), (18, 2), (18, 3), (18, 4), (18, 5), (18, 6), (18, 8),  -- Iced Creme Caramel Tea
+(19, 1), (19, 2), (19, 3), (19, 4), (19, 5), (19, 6), (19, 8),  -- Iced Green Tea Mint
+-- Makanan/pastry (hanya tersedia dalam keadaan normal)
+(20, 1),  -- Klapertart Croissant (default Less Sugar)
+(21, 1),  -- Beef Mentai Sandwich
+(22, 1),  -- Cakalang Quiche
+(23, 1),  -- Pain au Tiramisu
+(24, 1),  -- Matcha Strawberry Cake
+(25, 1),  -- Mushroom Truffle Sandwich
+(26, 1),  -- Cheesy Tuna Sandwich
+(27, 1),  -- Chicken Teriyaki Sandwich
+(28, 1),  -- Blueberry Cheese Muffin
+(29, 1),  -- Choco Melt Muffin
+(30, 1),  -- Smoked Beef & Cheese Croissant
+(31, 1),  -- Triple Cheese Danish
+(32, 1),  -- Almond Croissant
+(33, 1),  -- Banana Chocolate Cake
+(34, 1),  -- Cempedak Cake
+(35, 1),  -- Butter Croissant
+(36, 1),  -- Pain au Chocolat
+(37, 1),  -- Kouign-Amann
+-- Ice Blended drinks
+(38, 1), (38, 2), (38, 3), (38, 4), (38, 5), (38, 6),  -- Caramel Praline Coffee Ice Blended
+(39, 1), (39, 2), (39, 3), (39, 4), (39, 5), (39, 6),  -- Matcha Ice Blended
+(40, 1), (40, 2), (40, 3), (40, 4), (40, 5), (40, 6),  -- Strawberry Ice Blended
+(41, 1), (41, 2), (41, 3), (41, 4), (41, 5), (41, 6),  -- Chocolate Ice Blended
+-- Minuman kopi spesial
+(42, 1), (42, 2), (42, 3), (42, 4), (42, 5), (42, 6), (42, 7), (42, 8),  -- Iced Kopi Dari Tani
+(43, 1), (43, 2), (43, 3), (43, 4), (43, 5), (43, 6), (43, 7), (43, 8),  -- Iced Butterscotch Sea Salt Latte
+(44, 1), (44, 2), (44, 3), (44, 4), (44, 5), (44, 6), (44, 7), (44, 8),  -- Iced Buttercream Latte
+(45, 1), (45, 2), (45, 3), (45, 4), (45, 5), (45, 6), (45, 7), (45, 8),  -- Iced Aren Latte
+(46, 1), (46, 2), (46, 3), (46, 4), (46, 5), (46, 6), (46, 7), (46, 8),  -- Iced Pandan Latte
+(47, 1), (47, 2), (47, 3), (47, 4), (47, 5), (47, 6), (47, 7), (47, 8),  -- Iced Aceh Gayo
+(48, 1), (48, 2), (48, 3), (48, 4), (48, 5), (48, 6), (48, 7), (48, 8),  -- Iced Toraja Sapan
+(49, 1), (49, 2), (49, 3), (49, 4), (49, 5), (49, 6), (49, 7), (49, 8),  -- Iced Bali Kintamani
+(50, 1), (50, 2), (50, 3), (50, 4), (50, 5), (50, 6), (50, 7), (50, 8);  -- Iced Malty Latte
+
+
 -- Insert data untuk tabel products_sizes (menghubungkan semua products dengan semua sizes)
 INSERT INTO products_sizes (product_id, size_id)
 SELECT p.id, s.id 
@@ -166,11 +226,11 @@ FROM products p, sizes s;
 
 -- Insert data untuk tabel promos (promo berlaku untuk semua products)
 INSERT INTO promos (title, description, discount, start, "end") VALUES
-('Grand Opening', 'Special discount for all products during grand opening', 15.0, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
-('Weekend Special', 'Weekend special discount for all products', 10.0, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
-('Coffee Lover', 'Special discount for all coffee products', 20.0, '2024-01-01 00:00:00', '2024-12-31 23:59:59'),
-('Summer Sale', 'Summer special discount for all products', 25.0, '2024-06-01 00:00:00', '2024-08-31 23:59:59'),
-('Flash Sale', 'Flash sale for all products - limited time!', 30.0, '2024-03-01 00:00:00', '2024-03-07 23:59:59');
+('Grand Opening', 'Special discount for all products during grand opening', 15.0, '2024-01-01 00:00:00', '2025-12-31 23:59:59'),
+('Weekend Special', 'Weekend special discount for all products', 10.0, '2024-01-01 00:00:00', '2025-12-31 23:59:59'),
+('Coffee Lover', 'Special discount for all coffee products', 20.0, '2024-01-01 00:00:00', '2025-12-31 23:59:59'),
+('Summer Sale', 'Summer special discount for all products', 25.0, '2024-06-01 00:00:00', '2025-12-31 23:59:59'),
+('Flash Sale', 'Flash sale for all products - limited time!', 30.0, '2024-03-01 00:00:00', '2025-12-07 23:59:59');
 
 -- Insert data untuk tabel products_promos (menghubungkan products dengan promos)
 INSERT INTO products_promos (product_id, promo_id) VALUES
@@ -267,3 +327,72 @@ INSERT INTO orders (user_id, email, fullname, phone, address, payment_method_id,
 
 
 -- Insert data contoh untuk forgot_pass_token (jika diperlukan untuk testing)
+
+UPDATE products
+SET is_favorite = TRUE
+WHERE id < 10;
+
+SELECT * 
+FROM products p
+LEFT JOIN products_variants pv ON pv.product_id = p.id
+LEFT JOIN variants v ON v.id = pv.variant_id
+WHERE p.id=2;
+
+SELECT *
+FROM products_variants
+WHERE product_id = 2;
+
+
+SELECT 
+			o.invoice,
+			o.fullname as cust_name,
+			o.phone as cust_phone,
+			o.email as cust_email,
+			o.address as cust_address,
+			pm.name as payment_method,
+			d.name as delivery_method,
+			s.name as status,
+			o.total_order as total,
+			JSON_AGG(
+				JSON_BUILD_OBJECT(
+					'product_name', op.name,
+					'quantity', op.qty,
+					'subtotal', op.subtotal,
+					'size', COALESCE(sz.name, ''),
+					'variant', COALESCE(v.name, ''),
+					'image', i.image
+				)
+			) as items,
+			o.created_at,
+			o.updated_at
+		FROM orders o
+		LEFT JOIN payment_methods pm ON o.payment_method_id = pm.id
+		LEFT JOIN deliveries d ON o.delivery_id = d.id
+		LEFT JOIN status s ON o.status_id = s.id
+		LEFT JOIN orders_products op ON o.invoice = op.invoice
+		LEFT JOIN sizes sz ON op.size_id = sz.id
+		LEFT JOIN variants v ON op.varian_id = v.id
+		LEFT JOIN products_images i ON i.product_id = op.product_id
+		WHERE o.invoice = 'VIA-1763757135-9' AND o.user_id = 9
+		GROUP BY 
+			o.invoice, 
+			o.fullname, 
+			o.phone, 
+			o.email, 
+			o.address, 
+			pm.name, 
+			d.name, 
+			s.name, 
+			o.total_order,
+			o.created_at,
+			o.updated_at;
+
+SELECT COALESCE(json_agg(json_build_object('id', s.id, 'name', s.name)), '[]') 
+			FROM products_sizes ps LEFT JOIN sizes s ON ps.size_id = s.id WHERE ps.product_id = 5;
+
+UPDATE products
+SET deleted_at = NULL;
+
+SELECT id, title, description FROM promos WHERE "end" >= CURRENT_DATE;
+
+SELECT p.id, p.title, p.description, p.base_price, COALESCE(pr.discount, 0) AS discount, c.name AS category_name, COALESCE(ARRAY_AGG(DISTINCT i.image) FILTER (WHERE i.image IS NOT NULL), '{}') AS images, COALESCE(json_agg(DISTINCT jsonb_build_object('id', sz.id, 'name', sz.name)) FILTER (WHERE sz.id IS NOT NULL), '[]') AS sizes FROM products p LEFT JOIN categories c ON c.id = p.category_id LEFT JOIN products_images i ON i.product_id = p.id LEFT JOIN products_sizes ps ON ps.product_id = p.id LEFT JOIN sizes sz ON sz.id = ps.size_id LEFT JOIN products_promos pp ON pp.product_id = p.id LEFT JOIN promos pr ON pr.id = pp.promo_id WHERE p.deleted_at IS NULL GROUP BY p.id, c.name, pr.discount ORDER BY p.id DESC LIMIT 10 OFFSET 0

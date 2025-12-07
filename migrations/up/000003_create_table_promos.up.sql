@@ -8,6 +8,6 @@ CREATE TABLE promos (
 );
 
 CREATE TABLE products_promos (
-    product_id INT REFERENCES products(id),
+    product_id BIGINT REFERENCES products(id),
     promo_id INT REFERENCES promos(id)
 );
